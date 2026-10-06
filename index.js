@@ -39,7 +39,6 @@ app.listen(PORT, () => {
 
 const dbPath = path.join(__dirname, 'database.json');
 
-// الأيدي الثابتة
 const ROLES = {
     STAFF: "1557096881140535469",     // فريق الإدارة
     BAN_TEAM: "1557095186935455755", // مسؤولين الباند
@@ -85,10 +84,10 @@ const client = new Client({
 });
 
 const activeTickets = new Map();
-const renameCooldowns = new Map(); // خريطة التايمر لكل مستخدم
+const renameCooldowns = new Map();
 
 client.once('ready', async () => {
-    console.log(`تم تسجيل الدخول بنجاح باسم ${client.user.tag}! البوت WL Studio Bot جاهز تماماً.`);
+    console.log(`تم تسجيل الدخول بنجاح باسم ${client.user.tag}! البوت جاهز.`);
 
     client.user.setPresence({
         activities: [{ name: 'Tickets System by أبو غمدة', type: ActivityType.Watching }],
@@ -245,7 +244,7 @@ client.on('interactionCreate', async interaction => {
         config.ticketCounter = (config.ticketCounter || 0) + 1;
         saveGuildConfig(interaction.guild.id, config);
 
-        const ticketName = `ticket-${config.ticketCounter}`;
+        const ticketName = `تذكرة-${config.ticketCounter}`;
 
         const overwrites = [
             { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
@@ -280,7 +279,6 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // تم ضبط الرسالة العلوية لمنشن فريق الإدارة وعمود الشخط ومنشن العضو بدقة بدون أي كلام إنجليزي أو زخارف
         await ticketChannel.send({ 
             content: `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`, 
             embeds: [embed], 
@@ -388,22 +386,22 @@ client.on('interactionCreate', async interaction => {
 
             let roleId = ROLES.SUPPORT;
             let roleName = "مطلوب مسؤولين الدعم الفني";
-            let newChannelName = "support-request";
+            let newChannelName = "مطلوب-مسؤولين-الدعم-الفني";
             
             if (customId === 'req_ban') { 
                 roleId = ROLES.BAN_TEAM; 
                 roleName = "مطلوب مسؤولين الباند"; 
-                newChannelName = "ban-request";
+                newChannelName = "مطلوب-مسؤولين-الباند";
             }
             if (customId === 'req_comp') { 
                 roleId = ROLES.COMPENSATION; 
                 roleName = "مطلوب مسؤولين التعويض"; 
-                newChannelName = "comp-request";
+                newChannelName = "مطلوب-مسؤولين-التعويض";
             }
             if (customId === 'req_support') {
                 roleId = ROLES.SUPPORT;
                 roleName = "مطلوب مسؤولين الدعم الفني";
-                newChannelName = "support-request";
+                newChannelName = "مطلوب-مسؤولين-الدعم-الفني";
             }
 
             renameCooldowns.set(user.id, Date.now());
