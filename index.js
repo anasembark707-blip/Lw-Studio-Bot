@@ -19,7 +19,6 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 
-// استدعاء آمن لمكتبة الترانسبيرت لتجنب أي مشاكل في حال عدم التثبيت اليدوي
 let discordTranscripts;
 try {
     discordTranscripts = require('discord-html-transcripts');
@@ -86,7 +85,7 @@ const client = new Client({
 });
 
 const activeTickets = new Map();
-const renameCooldowns = new Map();
+const renameCooldowns = new Map(); // خريطة التايمر لكل مستخدم
 
 client.once('ready', async () => {
     console.log(`تم تسجيل الدخول بنجاح باسم ${client.user.tag}! البوت WL Studio Bot جاهز تماماً.`);
@@ -276,7 +275,7 @@ client.on('interactionCreate', async interaction => {
             );
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('ticket_options').setLabel('خيارات التذكرة ⚙️️').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_options').setLabel('خيارات التذكرة ⚙').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق التذكرة ❌️').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
@@ -301,8 +300,9 @@ client.on('interactionCreate', async interaction => {
 
     if (!interaction.isButton() && !interaction.isModalSubmit()) return;
 
+    // دالة فحص التايمر المنظمة (30 ثانية لكل مستخدم)
     const checkCooldown = (userId) => {
-        const cooldownTime = 30 * 1000;
+        const cooldownTime = 30 * 1000; // 30 ثانية
         const lastTime = renameCooldowns.get(userId) || 0;
         const now = Date.now();
         if (now - lastTime < cooldownTime) {
@@ -360,10 +360,11 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (customId === 'opt_rename_menu') {
+            // تحديث الأزرار الثلاثة بالأسماء الجديدة التي طلبتها
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('req_ban').setLabel('طلب مسؤولين الباند 🔺️').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId('req_comp').setLabel('طلب مسؤولين التعويض 🗂').setStyle(ButtonStyle.Primary),
-                new ButtonBuilder().setCustomId('req_support').setLabel('طلب مسؤولين الدعم الفني 👤').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('req_ban').setLabel('مطلوب مسؤولين الباند 🔺️').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('req_comp').setLabel('مطلوب مسؤولين التعويض 💸').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('req_support').setLabel('مطلوب مسؤولين الدعم الفني 🧑‍💻').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغيير اسم مخصص 🎫').setStyle(ButtonStyle.Success)
             );
             return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row], ephemeral: true });
@@ -376,7 +377,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             let roleId = ROLES.SUPPORT;
-            let roleName = "مسؤولين الدعم الفني";
+            let roleName = "مطلوب مسؤولين الدعم الفني";
             let newChannelName = "support-request";
             
             if (customId === 'req_ban') { 
@@ -390,11 +391,14 @@ client.on('interactionCreate', async interaction => {
                 newChannelName = "comp-request";
             }
             if (customId === 'req_support') {
+                roleId = ROLES.SUPPORT;
                 roleName = "مطلوب مسؤولين الدعم الفني";
                 newChannelName = "support-request";
             }
 
+            // تحديث وقت الاستخدام الأخير لهذا المستخدم بالذات
             renameCooldowns.set(user.id, Date.now());
+
             await channel.setName(newChannelName).catch(() => {});
             await channel.send(`مطلوب <@&${roleId}>\nالرجاء الانتظار 🤍.`);
             return interaction.reply({ content: `تم تغيير اسم التذكرة وإرسال الطلب إلى ${roleName} بنجاح! ✅`, ephemeral: true });
