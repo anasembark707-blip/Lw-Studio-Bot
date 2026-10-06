@@ -185,9 +185,10 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isButton() && ['open_support', 'open_ban', 'open_comp'].includes(interaction.customId)) {
+        // فحص عام: هل العضو لديه تذكرة مفتوحة من أي نوع؟
         const existingTicket = [...activeTickets.values()].find(t => t.userId === interaction.user.id && t.guildId === interaction.guild.id);
         if (existingTicket) {
-            return interaction.reply({ content: "عذراً، لديك تذكرة مفتوحة مسبقاً! ❌", ephemeral: true });
+            return interaction.reply({ content: "عذراً، لديك تذكرة مفتوحة مسبقاً ولا يمكنك فتح أكثر من تذكرة واحدة! ❌", ephemeral: true });
         }
 
         const modal = new ModalBuilder()
@@ -280,6 +281,7 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
+        // تم تعديل الرسالة العلوية لتكون مرتبة بالـ الشخط (|) وبدون أي حروف زائدة
         await ticketChannel.send({ 
             content: `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`, 
             embeds: [embed], 
@@ -360,7 +362,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (customId === 'opt_rename_menu') {
-            // تحديث الأزرار الثلاثة بالأسماء الجديدة التي طلبتها
+            // تم تحديث الأزرار بالنصوص الدقيقة التي طلبتها تماماً
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('req_ban').setLabel('مطلوب مسؤولين الباند 🔺️').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('req_comp').setLabel('مطلوب مسؤولين التعويض 💸').setStyle(ButtonStyle.Primary),
@@ -400,7 +402,7 @@ client.on('interactionCreate', async interaction => {
             renameCooldowns.set(user.id, Date.now());
 
             await channel.setName(newChannelName).catch(() => {});
-            await channel.send(`مطلوب <@&${roleId}>\nالرجاء الانتظار 🤍.`);
+            await channel.send(`${roleName} <@&${roleId}>\nالرجاء الانتظار 🤍.`);
             return interaction.reply({ content: `تم تغيير اسم التذكرة وإرسال الطلب إلى ${roleName} بنجاح! ✅`, ephemeral: true });
         }
 
