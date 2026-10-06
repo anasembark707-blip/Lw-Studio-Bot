@@ -244,15 +244,15 @@ client.on('interactionCreate', async interaction => {
         config.ticketCounter = (config.ticketCounter || 0) + 1;
         saveGuildConfig(interaction.guild.id, config);
 
-        const ticketName = `تذكرة-${config.ticketCounter}`;
+        const ticketName = `ticket-${config.ticketCounter}`;
 
         const overwrites = [
             { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
             { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
-            { id: ROLES.STAFF, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ReadMessageHistory], deny: [PermissionsBitField.Flags.SendMessages] },
-            { id: ROLES.BAN_TEAM, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ReadMessageHistory], deny: [PermissionsBitField.Flags.SendMessages] },
-            { id: ROLES.SUPPORT, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ReadMessageHistory], deny: [PermissionsBitField.Flags.SendMessages] },
-            { id: ROLES.COMPENSATION, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ReadMessageHistory], deny: [PermissionsBitField.Flags.SendMessages] }
+            { id: ROLES.STAFF, deny: [PermissionsBitField.Flags.SendMessages], allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ReadMessageHistory] },
+            { id: ROLES.BAN_TEAM, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+            { id: ROLES.SUPPORT, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+            { id: ROLES.COMPENSATION, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] }
         ];
 
         const ticketChannel = await interaction.guild.channels.create({
@@ -331,13 +331,16 @@ client.on('interactionCreate', async interaction => {
             }
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy) {
-                return interaction.reply({ content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticketData.claimedBy}>! ⚠️`, ephemeral: true });
+                return interaction.reply({ content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticketData.claimedBy}> ولا يمكن لأحد آخر استلامها! ⚠️`, ephemeral: true });
             }
 
             if (ticketData) ticketData.claimedBy = user.id;
 
-            await channel.permissionOverwrites.edit(ROLES.STAFF, { SendMessages: true, ViewChannel: true }).catch(() => {});
-            await channel.permissionOverwrites.edit(user.id, { SendMessages: true, ViewChannel: true, ReadMessageHistory: true }).catch(() => {});
+            await channel.permissionOverwrites.edit(user.id, {
+                SendMessages: true,
+                ViewChannel: true,
+                ReadMessageHistory: true
+            }).catch(() => {});
 
             const pointsObj = config.points || {};
             pointsObj[user.id] = (pointsObj[user.id] || 0) + 1;
@@ -481,20 +484,14 @@ client.on('interactionCreate', async interaction => {
                 const oldClaimer = ticketData.claimedBy;
                 ticketData.claimedBy = null;
 
+                await channel.permissionOverwrites.delete(oldClaimer).catch(() => {});
+
                 const pointsObj = config.points || {};
                 pointsObj[user.id] = Math.max(0, (pointsObj[user.id] || 1) - 1);
                 config.points = pointsObj;
                 saveGuildConfig(guild.id, config);
 
-                await channel.permissionOverwrites.edit(ROLES.STAFF, { SendMessages: false, ViewChannel: true }).catch(() => {});
-                await channel.permissionOverwrites.delete(user.id).catch(() => {});
-
                 await channel.send(`ترك الإداري المستلم <@${oldClaimer}> التذكرة وتم خصم نقطة 1 📉`);
-
-                const row = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅️').setStyle(ButtonStyle.Success)
-                );
-                await channel.send({ content: `<@&${ROLES.STAFF}>\nالرجاء الاستلام`, components: [row] });
             }
             return interaction.reply({ content: "تم ترك التذكرة بنجاح.", ephemeral: true });
         }
