@@ -368,7 +368,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('opt_warn').setLabel('تنبيه العضو ⚠️').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('opt_summon').setLabel('استدعاء الإداري ☑️').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row], ephemeral: true });
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️️:", components: [row], ephemeral: true });
         }
 
         if (customId === 'opt_rename_menu') {
