@@ -18,7 +18,14 @@ const {
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const discordTranscripts = require('discord-html-transcripts'); // مكتبة توليد ملف تريصبت احترافي
+
+// استدعاء آمن لمكتبة الترانسبيرت لتجنب أي مشاكل في حال عدم التثبيت اليدوي
+let discordTranscripts;
+try {
+    discordTranscripts = require('discord-html-transcripts');
+} catch (e) {
+    discordTranscripts = null;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -79,7 +86,7 @@ const client = new Client({
 });
 
 const activeTickets = new Map();
-const renameCooldowns = new Map(); // تايمر نصف دقيقة لتغيير الأسماء
+const renameCooldowns = new Map();
 
 client.once('ready', async () => {
     console.log(`تم تسجيل الدخول بنجاح باسم ${client.user.tag}! البوت WL Studio Bot جاهز تماماً.`);
@@ -178,7 +185,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // إظهار الأسئلة الأربعة الإجبارية عبر Modal
     if (interaction.isButton() && ['open_support', 'open_ban', 'open_comp'].includes(interaction.customId)) {
         const existingTicket = [...activeTickets.values()].find(t => t.userId === interaction.user.id && t.guildId === interaction.guild.id);
         if (existingTicket) {
@@ -223,7 +229,6 @@ client.on('interactionCreate', async interaction => {
         return interaction.showModal(modal);
     }
 
-    // استقبال الإجابات الأربعة وإنشاء التذكرة
     if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
         const btnType = interaction.customId.replace('ticket_modal_', '');
         let ticketType = "الدعم الفني";
@@ -271,7 +276,7 @@ client.on('interactionCreate', async interaction => {
             );
 
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('ticket_options').setLabel('خيارات التذكرة ⚙️').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('ticket_options').setLabel('خيارات التذكرة ⚙️️').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق التذكرة ❌️').setStyle(ButtonStyle.Danger),
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
@@ -443,7 +448,7 @@ client.on('interactionCreate', async interaction => {
             if (ticketData && ticketData.claimedBy) {
                 await channel.send(`تم استدعاء الإداري ☑ <@${ticketData.claimedBy}>`);
             } else {
-                await channel.send(`تم استدعاء الإداري ☑️️ <@&${ROLES.STAFF}>`);
+                await channel.send(`تم استدعاء الإداري ☑ <@&${ROLES.STAFF}>`);
             }
             return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: true });
         }
@@ -483,23 +488,23 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "تم ترك التذكرة بنجاح.", ephemeral: true });
         }
 
-        // حذف التذكرة + توليد ملف الترانسبيرت الاحترافي (شكل Hitmole)
         if (customId === 'delete_ticket') {
             const ticketData = activeTickets.get(channel.id);
             await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄", ephemeral: true });
 
             let attachment = null;
-            try {
-                // توليد ملف HTML احترافي للمحادثة كاملة
-                attachment = await discordTranscripts.createTranscript(channel, {
-                    limit: -1, // جلب جميع الرسائل
-                    returnType: 'attachment',
-                    filename: `transcript-${channel.name}.html`,
-                    saveImages: true, // حفظ الصور داخل الملف لتبقى صالحة
-                    poweredBy: false
-                });
-            } catch (err) {
-                console.error("خطأ في توليد الترانسبيرت:", err);
+            if (discordTranscripts) {
+                try {
+                    attachment = await discordTranscripts.createTranscript(channel, {
+                        limit: -1,
+                        returnType: 'attachment',
+                        filename: `transcript-${channel.name}.html`,
+                        saveImages: true,
+                        poweredBy: false
+                    });
+                } catch (err) {
+                    console.error("خطأ في توليد الترانسبيرت:", err);
+                }
             }
 
             if (CHANNELS.LOG) {
@@ -507,7 +512,6 @@ client.on('interactionCreate', async interaction => {
                 if (logChan) {
                     const closedAt = Math.floor(Date.now() / 1000);
                     
-                    // إمبد اللق المنظم والمرتب بشكل احترافي مع مسافات
                     const logEmbed = new EmbedBuilder()
                         .setColor(0x2F3136)
                         .setTitle("🔒 | سجل إغلاق تذكرة جديدة")
@@ -515,10 +519,10 @@ client.on('interactionCreate', async interaction => {
                         .addFields(
                             { name: "📌 اسم التذكرة:", value: `\`${channel.name}\``, inline: true },
                             { name: "🎫 نوع التذكرة:", value: `\`${ticketData ? ticketData.ticketTypeName : 'غير معروف'}\``, inline: true },
-                            { name: "\u200b", value: "\u200b", inline: false }, // مسافة فاصلاً
+                            { name: "\u200b", value: "\u200b", inline: false },
                             { name: "👤 صاحب التذكرة:", value: `<@${ticketData ? ticketData.userId : 'غير معروف'}>\n(\`${ticketData ? ticketData.userId : 'N/A'}\`)`, inline: true },
                             { name: "🛡️ مستلم التذكرة:", value: `${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>\n(\`${ticketData.claimedBy}\`)` : 'لم يتم الاستلام'}`, inline: true },
-                            { name: "\u200b", value: "\u200b", inline: false }, // مسافة فاصلاً
+                            { name: "\u200b", value: "\u200b", inline: false },
                             { name: "🛠️ حذفت بواسطة:", value: `<@${user.id}>\n(\`${user.username}\`)`, inline: true },
                             { name: "⏱️ وقت الفتح:", value: `<t:${ticketData ? ticketData.createdAt : closedAt}:R>`, inline: true },
                             { name: "🏁 وقت الإغلاق:", value: `<t:${closedAt}:R>`, inline: true }
