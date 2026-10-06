@@ -78,6 +78,7 @@ const client = new Client({
 });
 
 const activeTickets = new Map();
+const renameCooldowns = new Map(); // تايمر نصف دقيقة لتغيير الأسماء
 
 client.once('ready', async () => {
     console.log(`تم تسجيل الدخول بنجاح باسم ${client.user.tag}! البوت WL Studio Bot جاهز تماماً.`);
@@ -271,7 +272,7 @@ client.on('interactionCreate', async interaction => {
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ticket_options').setLabel('خيارات التذكرة ⚙️').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق التذكرة ❌️').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅️').setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅️️').setStyle(ButtonStyle.Success)
         );
 
         await ticketChannel.send({ 
@@ -292,183 +293,247 @@ client.on('interactionCreate', async interaction => {
         return interaction.editReply({ content: `تم فتح تذكرتك بنجاح هنا: <#${ticketChannel.id}> 🎟` });
     }
 
-    if (!interaction.isButton()) return;
+    if (!interaction.isButton() && !interaction.isModalSubmit()) return;
 
-    const { customId, channel, guild, member, user } = interaction;
-    let config = getGuildConfig(guild.id);
-
-    // استلام التذكرة
-    if (customId === 'claim_ticket') {
-        if (!member.roles.cache.has(ROLES.STAFF)) {
-            return interaction.reply({ content: "هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
+    // فحص التايمر (30 ثانية لتغيير الأسامي)
+    const checkCooldown = (userId) => {
+        const cooldownTime = 30 * 1000;
+        const lastTime = renameCooldowns.get(userId) || 0;
+        const now = Date.now();
+        if (now - lastTime < cooldownTime) {
+            const remaining = Math.ceil((cooldownTime - (now - lastTime)) / 1000);
+            return remaining;
         }
-        const ticketData = activeTickets.get(channel.id);
-        if (ticketData && ticketData.claimedBy) {
-            return interaction.reply({ content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticketData.claimedBy}>! ⚠️`, ephemeral: true });
-        }
+        return 0;
+    };
 
-        if (ticketData) ticketData.claimedBy = user.id;
+    if (interaction.isButton()) {
+        const { customId, channel, guild, member, user } = interaction;
+        let config = getGuildConfig(guild.id);
 
-        await channel.permissionOverwrites.edit(ROLES.STAFF, { SendMessages: true, ViewChannel: true }).catch(() => {});
-        await channel.permissionOverwrites.edit(user.id, { SendMessages: true, ViewChannel: true, ReadMessageHistory: true }).catch(() => {});
+        // استلام التذكرة
+        if (customId === 'claim_ticket') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
+            }
+            const ticketData = activeTickets.get(channel.id);
+            if (ticketData && ticketData.claimedBy) {
+                return interaction.reply({ content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticketData.claimedBy}>! ⚠️`, ephemeral: true });
+            }
 
-        const pointsObj = config.points || {};
-        pointsObj[user.id] = (pointsObj[user.id] || 0) + 1;
-        config.points = pointsObj;
-        saveGuildConfig(guild.id, config);
+            if (ticketData) ticketData.claimedBy = user.id;
 
-        await channel.send({ 
-            content: `تم استلام التذكرة <@${user.id}> !\n` +
-                     `أيدي الإداري [\`\`\` ${user.id} \`\`\`] 👤\n` +
-                     `يوزر الاداري المستلم [\`\`\` ${user.username} \`\`\`] 🧰\n` +
-                     `تم منح اليك نقطة ➕️ 1\n` +
-                     `عدد نقاطك = ${pointsObj[user.id]} 📊` 
-        });
-
-        return interaction.reply({ content: "تم الاستلام بنجاح.", ephemeral: true });
-    }
-
-    // خيارات التذكرة ⚙️
-    if (customId === 'ticket_options') {
-        if (!member.roles.cache.has(ROLES.STAFF) && member.id !== activeTickets.get(channel.id)?.userId) {
-            return interaction.reply({ content: "ليس لديك صلاحية لاستخدام هذه الخيارات ❌", ephemeral: true });
-        }
-
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('opt_rename_menu').setLabel('تغيير اسم التذكرة 🎟').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('opt_warn').setLabel('تنبيه العضو ⚠️').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('opt_summon').setLabel('استدعاء الاداري ☑️').setStyle(ButtonStyle.Success)
-        );
-        return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row], ephemeral: true });
-    }
-
-    // قائمة تغيير اسم التذكرة
-    if (customId === 'opt_rename_menu') {
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('req_ban').setLabel('طلب مسؤولين الباند 🔺️').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId('req_comp').setLabel('طلب مسؤولين التعويض 🗂').setStyle(ButtonStyle.Primary),
-            new ButtonBuilder().setCustomId('req_support').setLabel('طلب مسؤولين الدعم الفني 👤').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغير اسم التذكرة 🎫').setStyle(ButtonStyle.Success)
-        );
-        return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row], ephemeral: true });
-    }
-
-    // طلب مسؤولين الباند / التعويض / الدعم الفني
-    if (['req_ban', 'req_comp', 'req_support'].includes(customId)) {
-        let roleId = ROLES.SUPPORT;
-        let roleName = "مسؤولين الدعم الفني";
-        if (customId === 'req_ban') { roleId = ROLES.BAN_TEAM; roleName = "مسؤولين الباند"; }
-        if (customId === 'req_comp') { roleId = ROLES.COMPENSATION; roleName = "مسؤولين التعويض"; }
-
-        await channel.send(`يوجد طلب <@&${roleId}>\nالرجاء منك الانتظار 🤍.`);
-        return interaction.reply({ content: `تم إرسال الطلب إلى ${roleName} بنجاح! ✅`, ephemeral: true });
-    }
-
-    // تغيير اسم التذكرة المخصص
-    if (customId === 'custom_rename_prompt') {
-        await channel.setName(`ticket-custom-${Date.now().toString().slice(-4)}`).catch(() => {});
-        return interaction.reply({ content: "تم تغيير اسم التذكرة بنجاح! ✅", ephemeral: true });
-    }
-
-    // تنبيه العضو
-    if (customId === 'opt_warn') {
-        if (!member.roles.cache.has(ROLES.STAFF)) {
-            return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
-        }
-        const ticketData = activeTickets.get(channel.id);
-        if (!ticketData) return;
-
-        await channel.send(
-            `تم تفعيل وضع التنبيه ⚠️\n` +
-            `لـ العضو <@${ticketData.userId}>\n` +
-            `اذا لم يتم الرد في ٥ دقائق سيتم إغلاق التذكرة تلقائي.`
-        );
-
-        const timer = setTimeout(async () => {
-            activeTickets.delete(channel.id);
-            await channel.send("انتهت المدة ولم يرد العضو، سيتم حذف التذكرة.");
-            setTimeout(() => channel.delete().catch(() => {}), 3000);
-        }, 5 * 60 * 1000);
-
-        ticketData.timer = timer;
-        return interaction.reply({ content: "تم تفعيل التنبيه بنجاح.", ephemeral: true });
-    }
-
-    // استدعاء الإداري
-    if (customId === 'opt_summon') {
-        const ticketData = activeTickets.get(channel.id);
-        if (ticketData && ticketData.claimedBy) {
-            await channel.send(`تم استدعاء الاداري ☑️ <@${ticketData.claimedBy}>`);
-        } else {
-            await channel.send(`تم استدعاء الاداري ☑️ <@&${ROLES.STAFF}>`);
-        }
-        return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: true });
-    }
-
-    // إغلاق التذكرة
-    if (customId === 'close_ticket') {
-        if (!member.roles.cache.has(ROLES.STAFF)) {
-            return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
-        }
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId('delete_ticket').setLabel('حذف التذكرة 🗑').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك التذكرة 🚫').setStyle(ButtonStyle.Secondary)
-        );
-        return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row], ephemeral: true });
-    }
-
-    // ترك التذكرة
-    if (customId === 'leave_ticket') {
-        const ticketData = activeTickets.get(channel.id);
-        if (ticketData && ticketData.claimedBy === user.id) {
-            const oldClaimer = ticketData.claimedBy;
-            ticketData.claimedBy = null;
+            await channel.permissionOverwrites.edit(ROLES.STAFF, { SendMessages: true, ViewChannel: true }).catch(() => {});
+            await channel.permissionOverwrites.edit(user.id, { SendMessages: true, ViewChannel: true, ReadMessageHistory: true }).catch(() => {});
 
             const pointsObj = config.points || {};
-            pointsObj[user.id] = Math.max(0, (pointsObj[user.id] || 1) - 1);
+            pointsObj[user.id] = (pointsObj[user.id] || 0) + 1;
             config.points = pointsObj;
             saveGuildConfig(guild.id, config);
 
-            await channel.permissionOverwrites.edit(ROLES.STAFF, { SendMessages: false, ViewChannel: true }).catch(() => {});
-            await channel.permissionOverwrites.delete(user.id).catch(() => {});
+            await channel.send({ 
+                content: `تم استلاستبدال الاستلام <@${user.id}> !\n` +
+                         `أيدي الإداري [\`\`\` ${user.id} \`\`\`] 👤\n` +
+                         `يوزر الاداري المستلم [\`\`\` ${user.username} \`\`\`] 🧰\n` +
+                         `تم منح اليك نقطة ➕️ 1\n` +
+                         `عدد نقاطك = ${pointsObj[user.id]} 📊` 
+            });
 
-            await channel.send(`ترك الإداري المستلم <@${oldClaimer}> التذكرة وتم خصم منك نقطة 1 📉`);
+            return interaction.reply({ content: "تم الاستلام بنجاح.", ephemeral: true });
+        }
+
+        // خيارات التذكرة ⚙️
+        if (customId === 'ticket_options') {
+            if (!member.roles.cache.has(ROLES.STAFF) && member.id !== activeTickets.get(channel.id)?.userId) {
+                return interaction.reply({ content: "ليس لديك صلاحية لاستخدام هذه الخيارات ❌", ephemeral: true });
+            }
 
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅️').setStyle(ButtonStyle.Success)
+                new ButtonBuilder().setCustomId('opt_rename_menu').setLabel('تغيير اسم التذكرة 🎟').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('opt_warn').setLabel('تنبيه العضو ⚠️').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('opt_summon').setLabel('استدعاء الاداري ☑️').setStyle(ButtonStyle.Success)
             );
-            await channel.send({ content: `<@&${ROLES.STAFF}>\nالرجاء الإستلام`, components: [row] });
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row], ephemeral: true });
         }
-        return interaction.reply({ content: "تم ترك التذكرة بنجاح.", ephemeral: true });
+
+        // قائمة تغيير اسم التذكرة
+        if (customId === 'opt_rename_menu') {
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('req_ban').setLabel('طلب مسؤولين الباند 🔺️').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('req_comp').setLabel('طلب مسؤولين التعويض 🗂').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('req_support').setLabel('طلب مسؤولين الدعم الفني 👤').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغير اسم التذكرة 🎫').setStyle(ButtonStyle.Success)
+            );
+            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row], ephemeral: true });
+        }
+
+        // طلب مسؤولين الباند / التعويض / الدعم الفني (تغيير اسم التذكرة + المنشن)
+        if (['req_ban', 'req_comp', 'req_support'].includes(customId)) {
+            const timeLeft = checkCooldown(user.id);
+            if (timeLeft > 0) {
+                return interaction.reply({ content: `عذراً، يجب عليك الانتظار ${timeLeft} ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
+            }
+
+            let roleId = ROLES.SUPPORT;
+            let roleName = "مسؤولين الدعم الفني";
+            let newChannelName = "support-request";
+            
+            if (customId === 'req_ban') { 
+                roleId = ROLES.BAN_TEAM; 
+                roleName = "مطلوب مسؤولين الباند"; 
+                newChannelName = "ban-request";
+            }
+            if (customId === 'req_comp') { 
+                roleId = ROLES.COMPENSATION; 
+                roleName = "مطلوب مسؤولين التعويض"; 
+                newChannelName = "comp-request";
+            }
+            if (customId === 'req_support') {
+                roleName = "مطلوب مسؤولين الدعم الفني";
+                newChannelName = "support-request";
+            }
+
+            renameCooldowns.set(user.id, Date.now());
+            await channel.setName(newChannelName).catch(() => {});
+            await channel.send(`مطلوب <@&${roleId}>\nالرجاء الانتظار 🤍.`);
+            return interaction.reply({ content: `تم تغيير اسم التذكرة وإرسال الطلب إلى ${roleName} بنجاح! ✅`, ephemeral: true });
+        }
+
+        // نافذة إدخال اسم تذكرة مخصص للإداري
+        if (customId === 'custom_rename_prompt') {
+            const timeLeft = checkCooldown(user.id);
+            if (timeLeft > 0) {
+                return interaction.reply({ content: `عذراً، يجب عليك الانتظار ${timeLeft} ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
+            }
+
+            const modal = new ModalBuilder()
+                .setCustomId('custom_rename_modal')
+                .setTitle('تغيير اسم التذكرة المخصص 🎫');
+
+            const nameInput = new TextInputBuilder()
+                .setCustomId('new_ticket_name')
+                .setLabel('اكتب اسم التذكرة الجديد')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+            return interaction.showModal(modal);
+        }
+
+        // تنبيه العضو
+        if (customId === 'opt_warn') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
+            }
+            const ticketData = activeTickets.get(channel.id);
+            if (!ticketData) return;
+
+            await channel.send(
+                `تم تفعيل وضع التنبيه ⚠️\n` +
+                `لـ العضو <@${ticketData.userId}>\n` +
+                `اذا لم يتم الرد في ٥ دقائق سيتم إغلاق التذكرة تلقائي.`
+            );
+
+            const timer = setTimeout(async () => {
+                activeTickets.delete(channel.id);
+                await channel.send("انتهت المدة ولم يرد العضو، سيتم حذف التذكرة.");
+                setTimeout(() => channel.delete().catch(() => {}), 3000);
+            }, 5 * 60 * 1000);
+
+            ticketData.timer = timer;
+            return interaction.reply({ content: "تم تفعيل التنبيه بنجاح.", ephemeral: true });
+        }
+
+        // استدعاء الإداري
+        if (customId === 'opt_summon') {
+            const ticketData = activeTickets.get(channel.id);
+            if (ticketData && ticketData.claimedBy) {
+                await channel.send(`تم استدعاء الاداري ☑️️ <@${ticketData.claimedBy}>`);
+            } else {
+                await channel.send(`تم استدعاء الاداري ☑️ <@&${ROLES.STAFF}>`);
+            }
+            return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: true });
+        }
+
+        // إغلاق التذكرة
+        if (customId === 'close_ticket') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
+            }
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('delete_ticket').setLabel('حذف التذكرة 🗑').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك التذكرة 🚫').setStyle(ButtonStyle.Secondary)
+            );
+            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row], ephemeral: true });
+        }
+
+        // ترك التذكرة
+        if (customId === 'leave_ticket') {
+            const ticketData = activeTickets.get(channel.id);
+            if (ticketData && ticketData.claimedBy === user.id) {
+                const oldClaimer = ticketData.claimedBy;
+                ticketData.claimedBy = null;
+
+                const pointsObj = config.points || {};
+                pointsObj[user.id] = Math.max(0, (pointsObj[user.id] || 1) - 1);
+                config.points = pointsObj;
+                saveGuildConfig(guild.id, config);
+
+                await channel.permissionOverwrites.edit(ROLES.STAFF, { SendMessages: false, ViewChannel: true }).catch(() => {});
+                await channel.permissionOverwrites.delete(user.id).catch(() => {});
+
+                await channel.send(`ترك الإداري المستلم <@${oldClaimer}> التذكرة وتم خصم منك نقطة 1 📉`);
+
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅️').setStyle(ButtonStyle.Success)
+                );
+                await channel.send({ content: `<@&${ROLES.STAFF}>\nالرجاء الإستلام`, components: [row] });
+            }
+            return interaction.reply({ content: "تم ترك التذكرة بنجاح.", ephemeral: true });
+        }
+
+        // حذف التذكرة
+        if (customId === 'delete_ticket') {
+            const ticketData = activeTickets.get(channel.id);
+            await channel.send("سيتم حذف التذكرة...");
+
+            if (CHANNELS.LOG) {
+                const logChan = guild.channels.cache.get(CHANNELS.LOG);
+                if (logChan) {
+                    const closedAt = Math.floor(Date.now() / 1000);
+                    const logEmbed = new EmbedBuilder()
+                        .setColor(0xED4245)
+                        .setTitle(`تذكرة رقم ${config.ticketCounter}`)
+                        .setDescription(
+                            `**اسم التذكرة:** \`${channel.name}\`\n` +
+                            `**عضو التذكرة:** <@${ticketData ? ticketData.userId : 'غير معروف'}> | \`${ticketData ? ticketData.userId : ''}\`\n` +
+                            `**مستلم التذكرة:** ${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}> | \`${ticketData.claimedBy}\`` : 'لم يتم الاستلام'}\n` +
+                            `**حذفت بواسطة:** <@${user.id}> | \`${user.username}\`\n` +
+                            `**وقت فتح التذكرة:** <t:${ticketData ? ticketData.createdAt : closedAt}:F>\n` +
+                            `**وقت إغلاق التذكرة:** <t:${closedAt}:F>`
+                        );
+                    await logChan.send({ embeds: [logEmbed] });
+                }
+            }
+
+            activeTickets.delete(channel.id);
+            setTimeout(() => channel.delete().catch(() => {}), 3000);
+            return interaction.reply({ content: "جاري الحذف...", ephemeral: true });
+        }
     }
 
-    // حذف التذكرة
-    if (customId === 'delete_ticket') {
-        const ticketData = activeTickets.get(channel.id);
-        await channel.send("سيتم حذف التذكرة...");
-
-        if (CHANNELS.LOG) {
-            const logChan = guild.channels.cache.get(CHANNELS.LOG);
-            if (logChan) {
-                const closedAt = Math.floor(Date.now() / 1000);
-                const logEmbed = new EmbedBuilder()
-                    .setColor(0xED4245)
-                    .setTitle(`تذكرة رقم ${config.ticketCounter}`)
-                    .setDescription(
-                        `**اسم التذكرة:** \`${channel.name}\`\n` +
-                        `**عضو التذكرة:** <@${ticketData ? ticketData.userId : 'غير معروف'}> | \`${ticketData ? ticketData.userId : ''}\`\n` +
-                        `**مستلم التذكرة:** ${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}> | \`${ticketData.claimedBy}\`` : 'لم يتم الاستلام'}\n` +
-                        `**حذفت بواسطة:** <@${user.id}> | \`${user.username}\`\n` +
-                        `**وقت فتح التذكرة:** <t:${ticketData ? ticketData.createdAt : closedAt}:F>\n` +
-                        `**وقت إغلاق التذكرة:** <t:${closedAt}:F>`
-                    );
-                await logChan.send({ embeds: [logEmbed] });
-            }
+    // استقبال الاسم المخصص من النافذة وتطبيق التايمر عليه
+    if (interaction.isModalSubmit() && interaction.customId === 'custom_rename_modal') {
+        const timeLeft = checkCooldown(interaction.user.id);
+        if (timeLeft > 0) {
+            return interaction.reply({ content: `عذراً، يجب عليك الانتظار ${timeLeft} ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
         }
 
-        activeTickets.delete(channel.id);
-        setTimeout(() => channel.delete().catch(() => {}), 3000);
-        return interaction.reply({ content: "جاري الحذف...", ephemeral: true });
+        const newName = interaction.fields.getTextInputValue('new_ticket_name');
+        renameCooldowns.set(interaction.user.id, Date.now());
+
+        await interaction.channel.setName(newName).catch(() => {});
+        return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: true });
     }
 });
 
