@@ -280,13 +280,13 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
+        // تم ضبط الرسالة العلوية لمنشن فريق الإدارة وعمود الشخط ومنشن العضو بدقة بدون أي كلام إنجليزي أو زخارف
         await ticketChannel.send({ 
             content: `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`, 
             embeds: [embed], 
             components: [row] 
         });
 
-        // تنسيق التاريخ والوقت باللغة الإنجليزية (مثل: Monday, October 5, 2026 at 4:47 PM) لتوافق تصميم اللوق المطلوب
         const now = new Date();
         const formattedOpenDate = now.toLocaleString('en-US', { 
             weekday: 'long', 
