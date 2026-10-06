@@ -185,7 +185,6 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isButton() && ['open_support', 'open_ban', 'open_comp'].includes(interaction.customId)) {
-        // فحص عام: هل العضو لديه تذكرة مفتوحة من أي نوع؟
         const existingTicket = [...activeTickets.values()].find(t => t.userId === interaction.user.id && t.guildId === interaction.guild.id);
         if (existingTicket) {
             return interaction.reply({ content: "عذراً، لديك تذكرة مفتوحة مسبقاً ولا يمكنك فتح أكثر من تذكرة واحدة! ❌", ephemeral: true });
@@ -281,11 +280,22 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // تم تعديل الرسالة العلوية لتكون مرتبة بالـ الشخط (|) وبدون أي حروف زائدة
         await ticketChannel.send({ 
             content: `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`, 
             embeds: [embed], 
             components: [row] 
+        });
+
+        // تنسيق التاريخ والوقت باللغة الإنجليزية (مثل: Monday, October 5, 2026 at 4:47 PM) لتوافق تصميم اللوق المطلوب
+        const now = new Date();
+        const formattedOpenDate = now.toLocaleString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric', 
+            hour: 'numeric', 
+            minute: '2-digit', 
+            hour12: true 
         });
 
         activeTickets.set(ticketChannel.id, {
@@ -293,7 +303,7 @@ client.on('interactionCreate', async interaction => {
             userId: interaction.user.id,
             ticketTypeName: ticketType,
             claimedBy: null,
-            createdAt: Math.floor(Date.now() / 1000),
+            createdAtFormatted: formattedOpenDate,
             timer: null
         });
 
@@ -302,9 +312,8 @@ client.on('interactionCreate', async interaction => {
 
     if (!interaction.isButton() && !interaction.isModalSubmit()) return;
 
-    // دالة فحص التايمر المنظمة (30 ثانية لكل مستخدم)
     const checkCooldown = (userId) => {
-        const cooldownTime = 30 * 1000; // 30 ثانية
+        const cooldownTime = 30 * 1000;
         const lastTime = renameCooldowns.get(userId) || 0;
         const now = Date.now();
         if (now - lastTime < cooldownTime) {
@@ -362,7 +371,6 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (customId === 'opt_rename_menu') {
-            // تم تحديث الأزرار بالنصوص الدقيقة التي طلبتها تماماً
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('req_ban').setLabel('مطلوب مسؤولين الباند 🔺️').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('req_comp').setLabel('مطلوب مسؤولين التعويض 💸').setStyle(ButtonStyle.Primary),
@@ -398,7 +406,6 @@ client.on('interactionCreate', async interaction => {
                 newChannelName = "support-request";
             }
 
-            // تحديث وقت الاستخدام الأخير لهذا المستخدم بالذات
             renameCooldowns.set(user.id, Date.now());
 
             await channel.setName(newChannelName).catch(() => {});
@@ -504,7 +511,7 @@ client.on('interactionCreate', async interaction => {
                     attachment = await discordTranscripts.createTranscript(channel, {
                         limit: -1,
                         returnType: 'attachment',
-                        filename: `transcript-${channel.name}.html`,
+                        filename: `${channel.name}.html`,
                         saveImages: true,
                         poweredBy: false
                     });
@@ -516,7 +523,16 @@ client.on('interactionCreate', async interaction => {
             if (CHANNELS.LOG) {
                 const logChan = guild.channels.cache.get(CHANNELS.LOG);
                 if (logChan) {
-                    const closedAt = Math.floor(Date.now() / 1000);
+                    const closeDateObj = new Date();
+                    const formattedCloseDate = closeDateObj.toLocaleString('en-US', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric', 
+                        hour: 'numeric', 
+                        minute: '2-digit', 
+                        hour12: true 
+                    });
                     
                     const logEmbed = new EmbedBuilder()
                         .setColor(0x2F3136)
@@ -526,12 +542,12 @@ client.on('interactionCreate', async interaction => {
                             { name: "📌 اسم التذكرة:", value: `\`${channel.name}\``, inline: true },
                             { name: "🎫 نوع التذكرة:", value: `\`${ticketData ? ticketData.ticketTypeName : 'غير معروف'}\``, inline: true },
                             { name: "\u200b", value: "\u200b", inline: false },
-                            { name: "👤 صاحب التذكرة:", value: `<@${ticketData ? ticketData.userId : 'غير معروف'}>\n(\`${ticketData ? ticketData.userId : 'N/A'}\`)`, inline: true },
-                            { name: "🛡️ مستلم التذكرة:", value: `${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>\n(\`${ticketData.claimedBy}\`)` : 'لم يتم الاستلام'}`, inline: true },
+                            { name: "👤 صاحب التذكرة:", value: `<@${ticketData ? ticketData.userId : 'غير معروف'}>`, inline: true },
+                            { name: "🛡️ مستلم التذكرة:", value: `${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>` : 'لم يتم الاستلام'}`, inline: true },
                             { name: "\u200b", value: "\u200b", inline: false },
-                            { name: "🛠️ حذفت بواسطة:", value: `<@${user.id}>\n(\`${user.username}\`)`, inline: true },
-                            { name: "⏱️ وقت الفتح:", value: `<t:${ticketData ? ticketData.createdAt : closedAt}:R>`, inline: true },
-                            { name: "🏁 وقت الإغلاق:", value: `<t:${closedAt}:R>`, inline: true }
+                            { name: "🛠️ حذفت بواسطة:", value: `<@${user.id}>`, inline: true },
+                            { name: "⏱️ وقت فتحها:", value: `${ticketData ? ticketData.createdAtFormatted : 'غير متوفر'}`, inline: false },
+                            { name: "🏁 وقت إغلاقها:", value: `${formattedCloseDate}`, inline: false }
                         )
                         .setTimestamp()
                         .setFooter({ text: "WL Studio Tickets System • Log Archives", iconURL: guild.iconURL() });
