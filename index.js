@@ -319,9 +319,11 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // صياغة الترحيب بالشكل المطلوب تماماً
+        // رسالة الترحيب المطلوبة بالشكل النظيف وبدون رموز مخفية
+        const welcomeText = `<@&${ROLES.STAFF}>\vert{}\vert{}\n<@${interaction.user.id}>||`;
+
         await ticketChannel.send({ 
-            content: `<@&${ROLES.STAFF}>\vert{}\vert{}\n<@${interaction.user.id}>||`, 
+            content: welcomeText, 
             embeds: [embed], 
             components: [row] 
         });
