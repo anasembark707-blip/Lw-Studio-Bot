@@ -40,15 +40,17 @@ app.listen(PORT, () => {
 const dbPath = path.join(__dirname, 'database.json');
 
 const ROLES = {
-    STAFF: "1557096881140535469",     // فريق الإدارة
-    BAN_TEAM: "1557095186935455755", // مسؤولين الباند
-    SUPPORT: "1557095817427558420",  // مسؤولين الدعم الفني
-    COMPENSATION: "1545853973922058281" // مسؤولين التعويض
+    STAFF: "1557096881140535469",         // فريق الإدارة
+    BAN_TEAM: "1557095186935455755",     // مسؤولين الباند
+    SUPPORT: "1557095817427558420",      // مسؤولين الدعم الفني
+    COMPENSATION: "1545853973922058281", // مسؤولين التعويض
+    LAB_ROLE: "1546001638278434936"      // رتبه نظام الفصل
 };
 
 const CHANNELS = {
-    LOG: "1550972645976309781",       // روم لوق تكتات
-    CATEGORY: "1550992320835362846"   // كاتجوري تكتات تفعيل
+    LOG: "1550972645976309781",          // روم لوق تكتات
+    CATEGORY: "1550992320835362846",     // كاتجوري تكتات تفعيل
+    LAB_LOG: "1555934771274719362"       // روم فصل المختبرين
 };
 
 function getGuildConfig(guildId) {
@@ -103,7 +105,18 @@ client.once('ready', async () => {
             .setDescription('عرض نقاط الفريق الإداري للتذاكر'),
         new SlashCommandBuilder()
             .setName('restpointict')
-            .setDescription('تصفير نقاط الفريق الإداري للتذاكر')
+            .setDescription('تصفير نقاط الفريق الإداري للتذاكر'),
+        new SlashCommandBuilder()
+            .setName('laboratory-session')
+            .setDescription('نظام فصل المختبرين')
+            .addUserOption(option => 
+                option.setName('user')
+                    .setDescription('العضو المراد فصله')
+                    .setRequired(true))
+            .addStringOption(option => 
+                option.setName('reason')
+                    .setDescription('سبب الفصل')
+                    .setRequired(true))
     ];
 
     const botToken = process.env.DISCORD_TOKEN;
@@ -124,6 +137,33 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.isChatInputCommand()) {
         const { commandName, member, guild, channel } = interaction;
+
+        if (commandName === 'laboratory-session') {
+            if (!member.roles.cache.has(ROLES.LAB_ROLE)) {
+                return interaction.reply({ content: "عذراً، هذا الأمر خاص برتبة مختبرين محددة فقط! ❌", ephemeral: true });
+            }
+
+            const targetUser = interaction.options.getUser('user');
+            const reason = interaction.options.getString('reason');
+            const targetChannel = guild.channels.cache.get(CHANNELS.LAB_LOG);
+
+            if (!targetChannel) {
+                return interaction.reply({ content: "روم فصل المختبرين غير محدد أو غير موجود! ❌", ephemeral: true });
+            }
+
+            const labEmbed = new EmbedBuilder()
+                .setColor(0xFF0000) // لون أحمر
+                .setDescription(
+                    `**__إيمبد فصل مختبر__**\n\n` +
+                    `عزيز المسؤول <@${interaction.user.id}>\n\n` +
+                    `تم فصل <@${targetUser.id}>\n\n` +
+                    `سبب الفصل [${reason}]`
+                )
+                .setTimestamp();
+
+            await targetChannel.send({ embeds: [labEmbed] });
+            return interaction.reply({ content: "تم إرسال بلاغ الفصل بنجاح إلى روم المختبرين! ✅", ephemeral: true });
+        }
 
         if (commandName === 'setup-tickets') {
             if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -279,6 +319,7 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
+        // تم إصلاح شكل المنشن ونظيف بالكامل بدون أي حروف أو أقواس غريبة
         await ticketChannel.send({ 
             content: `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`, 
             embeds: [embed], 
@@ -331,7 +372,7 @@ client.on('interactionCreate', async interaction => {
             }
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy) {
-                return interaction.reply({ content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticketData.claimedBy}> ولا يمكن لأحد آخر استلامها! ⚠️`, ephemeral: true });
+                return interaction.reply({ content: `تم استلاستبدال الاستلام مسبقاً بواسطة <@${ticketData.claimedBy}>! ⚠️`, ephemeral: true });
             }
 
             if (ticketData) ticketData.claimedBy = user.id;
@@ -368,7 +409,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('opt_warn').setLabel('تنبيه العضو ⚠️').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('opt_summon').setLabel('استدعاء الإداري ☑️').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️️:", components: [row], ephemeral: true });
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row], ephemeral: true });
         }
 
         if (customId === 'opt_rename_menu') {
@@ -467,6 +508,7 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: true });
         }
 
+        // زر إغلاق التذكرة (عام للجميع وليس مخفياً)
         if (customId === 'close_ticket') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
@@ -475,9 +517,10 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('delete_ticket').setLabel('حذف التذكرة 🗑').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك التذكرة 🚫').setStyle(ButtonStyle.Secondary)
             );
-            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row], ephemeral: true });
+            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row] }); // أزلنا ephemeral لتظهر للجميع
         }
 
+        // زر ترك التذكرة مع إرسال رسالة المنشن وزر الاستلام في نفس التكت
         if (customId === 'leave_ticket') {
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy === user.id) {
@@ -491,14 +534,20 @@ client.on('interactionCreate', async interaction => {
                 config.points = pointsObj;
                 saveGuildConfig(guild.id, config);
 
+                // إرسال رسالة ترك التذكرة ورسالة المنشن للاستلام في نفس التكت للجميع
+                const claimRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
+                );
+
                 await channel.send(`ترك الإداري المستلم <@${oldClaimer}> التذكرة وتم خصم نقطة 1 📉`);
+                await channel.send({ content: `الرجاء من الفريق الإداري استلام التذكرة <@&${ROLES.STAFF}>`, components: [claimRow] });
             }
             return interaction.reply({ content: "تم ترك التذكرة بنجاح.", ephemeral: true });
         }
 
         if (customId === 'delete_ticket') {
             const ticketData = activeTickets.get(channel.id);
-            await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄", ephemeral: true });
+            await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄" }); // عام وليس مخفي
 
             let attachment = null;
             if (discordTranscripts) {
