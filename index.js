@@ -319,8 +319,8 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // المنشن النظيف تماماً بالرمز | بدون أي أحرف أو رموز خفية
-        const cleanMention = `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`;
+        // منشن فريق الإدارة فوق وتحته منشن العضو في سطر منفصل وبدون أي أعمدة أو رموز
+        const cleanMention = `<@&${ROLES.STAFF}>\n<@${interaction.user.id}>`;
 
         await ticketChannel.send({ 
             content: cleanMention, 
