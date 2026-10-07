@@ -302,10 +302,13 @@ client.on('interactionCreate', async interaction => {
             permissionOverwrites: overwrites,
         });
 
+        // نقلنا المنشن والترحيب بالكامل داخل الإيمبد لتجنب أي مشاكل نسخ أو حروف مخفية في الـ content
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
             .setTitle(`تم فتح تذكرة [ ${ticketType} ]`)
             .setDescription(
+                `<@&${ROLES.STAFF}>\n` +
+                `<@${interaction.user.id}>\n\n` +
                 "انت الان بـ التذكرة نتمنى عدم الاستهبال 🪧.\n\n" +
                 `📌 **1- الاسم الكريم:** ${nameAns}\n` +
                 `🎮 **2- يوزر روبلوكس:** ${robloxAns}\n` +
@@ -319,11 +322,7 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // رسالة الترحيب المطلوبة بالشكل النظيف وبدون رموز مخفية
-        const welcomeText = `<@&${ROLES.STAFF}>\vert{}\vert{}\n<@${interaction.user.id}>||`;
-
         await ticketChannel.send({ 
-            content: welcomeText, 
             embeds: [embed], 
             components: [row] 
         });
@@ -370,7 +369,7 @@ client.on('interactionCreate', async interaction => {
 
         if (customId === 'claim_ticket') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
-                return interaction.reply({ content: "هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
+                return interaction.reply({ content: "عذراً، هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
             }
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy) {
