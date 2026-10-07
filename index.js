@@ -302,7 +302,6 @@ client.on('interactionCreate', async interaction => {
             permissionOverwrites: overwrites,
         });
 
-        // الإمبد الخاص بتفاصيل التذكرة بدون منشن داخله
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
             .setTitle(`تم فتح تذكرة [ ${ticketType} ]`)
@@ -320,11 +319,11 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // المنشن أصبح في الخارج تماماً في الـ content وبشكل صافٍ ومرتب
-        const mentionContent = `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`;
+        // المنشن النظيف تماماً بالرمز | بدون أي أحرف أو رموز خفية
+        const cleanMention = `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`;
 
         await ticketChannel.send({ 
-            content: mentionContent, 
+            content: cleanMention, 
             embeds: [embed], 
             components: [row] 
         });
