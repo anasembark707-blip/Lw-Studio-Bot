@@ -319,9 +319,9 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // المنشن النظيف المطلوب تماماً بدون أي حروف غريبة
+        // رسالة الترحيب المطلوبة بالشكل النظيف تماماً
         await ticketChannel.send({ 
-            content: `<@&${ROLES.STAFF}> \vert{} <@${interaction.user.id}>`, 
+            content: `<@&${ROLES.STAFF}> \vert{}\n<@${interaction.user.id}>`, 
             embeds: [embed], 
             components: [row] 
         });
@@ -372,7 +372,6 @@ client.on('interactionCreate', async interaction => {
             }
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy) {
-                // تصحيح الجلتش وجعل رسالة التذكرة المستلمة واضحة
                 return interaction.reply({ content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticketData.claimedBy}> ! ⚠️` });
             }
 
@@ -410,7 +409,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('opt_warn').setLabel('تنبيه العضو ⚠️').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('opt_summon').setLabel('استدعاء الإداري ☑️').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row] }); // ظاهرة للجميع
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row] });
         }
 
         if (customId === 'opt_rename_menu') {
@@ -420,7 +419,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('req_support').setLabel('مطلوب مسؤولين الدعم الفني 🧑‍💻').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغيير اسم مخصص 🎫').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row] }); // ظاهرة للجميع
+            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row] });
         }
 
         if (['req_ban', 'req_comp', 'req_support'].includes(customId)) {
@@ -517,7 +516,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('delete_ticket').setLabel('حذف التذكرة 🗑').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك التذكرة 🚫').setStyle(ButtonStyle.Secondary)
             );
-            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row] }); // ظاهرة للجميع
+            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row] });
         }
 
         if (customId === 'leave_ticket') {
@@ -545,7 +544,7 @@ client.on('interactionCreate', async interaction => {
 
         if (customId === 'delete_ticket') {
             const ticketData = activeTickets.get(channel.id);
-            await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄" }); // ظاهرة للجميع
+            await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄" });
 
             let attachment = null;
             if (discordTranscripts) {
