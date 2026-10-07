@@ -319,9 +319,9 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
-        // تم تنظيف وتعديل صياغة المنشن تماماً لتكون صافية وخالية من أي أحرف أو جلتشات
+        // صياغة الترحيب بالشكل المطلوب تماماً
         await ticketChannel.send({ 
-            content: `<@&${ROLES.STAFF}>\n<@${interaction.user.id}>`, 
+            content: `<@&${ROLES.STAFF}>\vert{}\vert{}\n<@${interaction.user.id}>||`, 
             embeds: [embed], 
             components: [row] 
         });
