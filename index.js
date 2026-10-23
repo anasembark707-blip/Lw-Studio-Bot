@@ -40,7 +40,8 @@ app.listen(PORT, () => {
 const dbPath = path.join(__dirname, 'database.json');
 
 const ROLES = {
-    STAFF: "1557096881140535469",         // فريق الإدارة
+    STAFF: "1557096881140535469",         // فريق الإدارة (تايم أوت)
+    BAN_PERMISSION: "1563202863336005692",// تصريح باند
     BAN_TEAM: "1557095186935455755",     // مسؤولين الباند
     SUPPORT: "1557095817427558420",      // مسؤولين الدعم الفني
     COMPENSATION: "1545853973922058281", // مسؤولين التعويض
@@ -50,7 +51,8 @@ const ROLES = {
 const CHANNELS = {
     LOG: "1550972645976309781",          // روم لوق تكتات
     CATEGORY: "1550992320835362846",     // كاتجوري تكتات تفعيل
-    LAB_LOG: "1555934771274719362"       // روم فصل المختبرين
+    LAB_LOG: "1555934771274719362",      // روم فصل المختبرين
+    TIMEOUT_LOG: "1547308390844211250"  // روم كشف التايم
 };
 
 function getGuildConfig(guildId) {
@@ -74,6 +76,21 @@ function saveGuildConfig(guildId, newConfig) {
     }
     data[guildId] = { ...(data[guildId] || {}), ...newConfig };
     fs.writeFileSync(dbPath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function parseDuration(str) {
+    if (!str) return null;
+    const match = str.match(/^(\d+)([smhd])$/i);
+    if (!match) return null;
+    const value = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    switch (unit) {
+        case 's': return value * 1000;
+        case 'm': return value * 60 * 1000;
+        case 'h': return value * 60 * 60 * 1000;
+        case 'd': return value * 24 * 60 * 60 * 1000;
+        default: return null;
+    }
 }
 
 const client = new Client({
@@ -129,6 +146,212 @@ client.once('ready', async () => {
         console.log('تم تسجيل أوامر السلاش بنجاح! 🚀');
     } catch (error) {
         console.error('خطأ في تسجيل أوامر السلاش:', error);
+    }
+});
+
+// معالجة الأوامر النصية والاختصارات السريعة (-تايم، -تكلم، -باند، إلخ)
+client.on('messageCreate', async message => {
+    if (message.author.bot || !message.guild) return;
+
+    const content = message.content.trim();
+    const args = content.split(/\s+/);
+    const command = args[0].toLowerCase();
+
+    // 1. أمر التايم أوت الاختصار (-تايم أو /time)
+    if (command === '-تايم' || command === '/time') {
+        if (!message.member.roles.cache.has(ROLES.STAFF)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
+        }
+
+        const targetMember = message.mentions.members.first();
+        if (!targetMember) {
+            return message.reply("الرجاء كتابة السبب ومنشنة الشخص وكتابة المدة ⚠️");
+        }
+
+        const durationStr = args[2];
+        const durationMs = parseDuration(durationStr);
+        const reason = args.slice(3).join(' ') || "بدون سبب مدخل";
+
+        if (!durationMs) {
+            return message.reply("الرجاء كتابة السبب ومنشنة الشخص وكتابة المدة بشكل صحيح (مثال: `1d` أو `10m` أو `1h`) ⚠️");
+        }
+
+        try {
+            await targetMember.timeout(durationMs, reason);
+            
+            // حذف رسالة الإداري الأصلية فوراً
+            await message.delete().catch(() => {});
+
+            // إرسال رد النجاح بالروم
+            const successEmbed = new EmbedBuilder()
+                .setColor(0xFFFF00)
+                .setTitle("**تم اعطاء تايم بنجاح ✅️ ⚠️**")
+                .setDescription(`**بواسطة :** <@${message.author.id}> | **الشخص :** <@${targetMember.id}> | **السبب :** ${reason}`);
+
+            await message.channel.send({ embeds: [successEmbed] });
+
+            // إرسال إمبد الأصفر في كشف التايم
+            const timeLogChannel = message.guild.channels.cache.get(CHANNELS.TIMEOUT_LOG);
+            if (timeLogChannel) {
+                const timeoutEmbed = new EmbedBuilder()
+                    .setColor(0xFFFF00)
+                    .setDescription(
+                        `** تم اعطاء تايم اوت | Timeout **\n\n\n\n` +
+                        `**الشخص المكتوم :**\n` +
+                        `الى [<@${targetMember.id}>]\n\n\n\n` +
+                        `**الاداري الي معطي التايم :**\n` +
+                        `[<@${message.author.id}>]\n\n\n\n` +
+                        `**سبب وضع التايم :**\n` +
+                        `[${reason}]\n\n\n` +
+                        `** **`
+                    )
+                    .setTimestamp();
+
+                await timeLogChannel.send({ embeds: [timeoutEmbed] });
+            }
+        } catch (err) {
+            console.error(err);
+            message.channel.send("حدث خطأ أثناء إعطاء التايم أوت، تأكد من صلاحيات البوت ورتبة العضو! ❌");
+        }
+        return;
+    }
+
+    // 2. أمر إزالة التايم أوت الاختصار (-تكلم أو /untimeout)
+    if (command === '-تكلم' || command === '/untimeout') {
+        if (!message.member.roles.cache.has(ROLES.STAFF)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
+        }
+
+        const targetMember = message.mentions.members.first();
+        if (!targetMember) {
+            return message.reply("الرجاء منشن العضو المراد إزالة التايم أوت عنه! ⚠️");
+        }
+
+        try {
+            await targetMember.timeout(null);
+            await message.delete().catch(() => {});
+            return message.channel.send(`تم إزالة التايم أوت عن العضو <@${targetMember.id}> بنجاح ✅`);
+        } catch (err) {
+            return message.channel.send("فشل في إزالة التايم أوت عن العضو! ❌");
+        }
+    }
+
+    // 3. عرض قائمة المكتومين (alltimeout)
+    if (command === 'alltimeout') {
+        if (!message.member.roles.cache.has(ROLES.STAFF)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
+        }
+
+        const members = await message.guild.members.fetch();
+        const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
+
+        if (timedOutMembers.size === 0) {
+            return message.reply("لا يوجد أسطورة ماخذ تايم أوت حالياً بالسيرفر! 🛡️");
+        }
+
+        const listDesc = timedOutMembers.map(m => `• <@${m.id}> (\`${m.id}\`)`).join('\n');
+        const embed = new EmbedBuilder()
+            .setColor(0xFFFF00)
+            .setTitle("**قائمة الأعضاء الآخذين تايم أوت ⏱️**")
+            .setDescription(listDesc);
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // 4. إزالة التايم أوت عن الجميع (alluntimeout)
+    if (command === 'alluntimeout') {
+        if (!message.member.roles.cache.has(ROLES.STAFF)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
+        }
+
+        const members = await message.guild.members.fetch();
+        const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
+
+        let count = 0;
+        for (const [id, m] of timedOutMembers) {
+            await m.timeout(null).catch(() => {});
+            count++;
+        }
+
+        return message.reply(`تم إزالة التايم أوت عن جميع الأعضاء المكتومين بنجاح! وعددهم: **${count}** 🔄`);
+    }
+
+    // 5. أمر الباند الاختصار (-باند)
+    if (command === '-باند') {
+        if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
+        }
+
+        const targetMember = message.mentions.members.first();
+        if (!targetMember) {
+            return message.reply("الرجاء منشن العضو المراد تبنيده! ⚠️");
+        }
+
+        const reason = args.slice(2).join(' ') || "بدون سبب مدخل";
+
+        try {
+            await targetMember.ban({ reason });
+            await message.delete().catch(() => {});
+            return message.channel.send(`تم حظر العضو <@${targetMember.id}> بنجاح ✅ | **السبب:** ${reason}`);
+        } catch (err) {
+            return message.channel.send("تعذر تبنيد العضو، يرجى التأكد من صلاحيات البوت! ❌");
+        }
+    }
+
+    // 6. أمر فك الباند الاختصار (-تعال)
+    if (command === '-تعال') {
+        if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
+        }
+
+        const userId = args[1]?.replace(/[^0-9]/g, '');
+        if (!userId) {
+            return message.reply("الرجاء كتابة أيدي العضو أو منشنته لفك الباند عنه! ⚠️");
+        }
+
+        try {
+            await message.guild.members.unban(userId);
+            await message.delete().catch(() => {});
+            return message.channel.send(`تم فك الحظر عن العضو <@${userId}> بنجاح ✅`);
+        } catch (err) {
+            return message.channel.send("لم يتم العثور على العضو في قائمة الحظر! ❌");
+        }
+    }
+
+    // 7. عرض قائمة المبندين (allban)
+    if (command === 'allban') {
+        if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
+        }
+
+        const bans = await message.guild.bans.fetch();
+        if (bans.size === 0) {
+            return message.reply("لا يوجد أعضاء مبندين بالسيرفر حالياً! 🛡️");
+        }
+
+        const listDesc = bans.map(b => `• **${b.user.tag}** (\`${b.user.id}\`)`).slice(0, 30).join('\n');
+        const embed = new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle(`**قائمة الأعضاء المبندين (الإجمالي: ${bans.size}) ⛔**`)
+            .setDescription(listDesc);
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // 8. إزالة الباند عن الجميع (allunban)
+    if (command === 'allunban') {
+        if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
+            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
+        }
+
+        const bans = await message.guild.bans.fetch();
+        let count = 0;
+        for (const [id, ban] of bans) {
+            await message.guild.members.unban(id).catch(() => {});
+            count++;
+        }
+
+        return message.reply(`تم إزالة الحظر عن جميع الأعضاء المبندين بنجاح! وعددهم: **${count}** 🔓`);
     }
 });
 
@@ -313,7 +536,6 @@ client.on('interactionCreate', async interaction => {
                 `📁 **4- هل يوجد دليل؟:** ${proofAns}`
             );
 
-        // أزرار التذكرة الأساسية مع زر الاستلام المباشر وزر خيارات التذكرة والإغلاق
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ticket_options').setLabel('خيارات التذكرة ⚙').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق التذكرة ❌️').setStyle(ButtonStyle.Danger),
@@ -368,7 +590,6 @@ client.on('interactionCreate', async interaction => {
         const { customId, channel, guild, member, user } = interaction;
         let config = getGuildConfig(guild.id);
 
-        // نظام استلام التذكرة المباشر (يعطيه نقطة وإيمبد نقاط ومنشن + يظهر تحته زر طلب الاستلام وترك)
         if (customId === 'claim_ticket') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "عذراً، هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
@@ -386,18 +607,15 @@ client.on('interactionCreate', async interaction => {
                 ReadMessageHistory: true
             }).catch(() => {});
 
-            // إضافة نقطة للإداري المستلم
             const pointsObj = config.points || {};
             pointsObj[user.id] = (pointsObj[user.id] || 0) + 1;
             config.points = pointsObj;
             saveGuildConfig(guild.id, config);
 
-            // إيمبد النقاط المطلوب (نفس الصور)[cite: 2, 5]
             const pointsEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
                 .setDescription(`تم اعطائك 1 نقطة نقاطك الان : ${pointsObj[user.id]}`);
 
-            // أزرار طلب الاستلام والترك التي تظهر تحت إيمبد الاستلام (للإدارة الصغرى للمساعدة)
             const subRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('claim_request').setLabel('طلب استلام 📌').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك ⛔️').setStyle(ButtonStyle.Danger)
@@ -412,7 +630,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "تم الاستلام بنجاح.", ephemeral: true });
         }
 
-        // نظام طلب الاستلام الثانوي (بواسطة الإدارة الصغرى لمساعدة المستلم الأول)
         if (customId === 'claim_request') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "عذراً، هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
@@ -422,7 +639,6 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: "يجب استلام التذكرة أولاً قبل إرسال طلب استلام ثانوي! ⚠️", ephemeral: true });
             }
 
-            // إرسال رسالة للمستلم الأساسي أو الإدارة للقبول/الرفض
             const requestEmbed = new EmbedBuilder()
                 .setColor(0x5865F2)
                 .setDescription(`**طلب استلام إضافي للتذكرة بواسطة:** <@${user.id}>\n**أيدي:** \`${user.id}\``)
@@ -442,7 +658,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "تم إرسال طلب الاستلام إلى مستلم التذكرة بنجاح! ✅", ephemeral: true });
         }
 
-        // قبول أو رفض طلب الاستلام الفرعي
         if (customId.startsWith('accept_sub_claim_') || customId === 'reject_claim') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "عذراً، هذا القرار خاص بفريق الإدارة فقط! ❌", ephemeral: true });
@@ -482,7 +697,6 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: "ليس لديك صلاحية لاستخدام هذه الخيارات ❌", ephemeral: true });
             }
 
-            // إضافة أزرار "إضافة عضو" و "إزالة عضو" في قائمة الخيارات
             const row1 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('opt_rename_menu').setLabel('تغيير اسم التذكرة 🎟').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setCustomId('opt_warn').setLabel('تنبيه العضو ⚠️').setStyle(ButtonStyle.Secondary),
@@ -495,7 +709,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: true });
         }
 
-        // نافذة إضافة عضو
         if (customId === 'add_member_prompt') {
             const modal = new ModalBuilder()
                 .setCustomId('add_member_modal')
@@ -511,7 +724,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.showModal(modal);
         }
 
-        // نافذة إزالة عضو
         if (customId === 'remove_member_prompt') {
             const modal = new ModalBuilder()
                 .setCustomId('remove_member_modal')
@@ -724,7 +936,6 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.isModalSubmit()) {
-        // تنفيذ تغيير الاسم المخصص
         if (interaction.customId === 'custom_rename_modal') {
             const timeLeft = checkCooldown(interaction.user.id);
             if (timeLeft > 0) {
@@ -738,7 +949,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: true });
         }
 
-        // تنفيذ إضافة عضو للتذكرة
         if (interaction.customId === 'add_member_modal') {
             const rawInput = interaction.fields.getTextInputValue('target_user_id').replace(/[^0-9]/g, '');
             const targetMember = await interaction.guild.members.fetch(rawInput).catch(() => null);
@@ -756,7 +966,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: `تم إضافة العضو <@${targetMember.id}> إلى التذكرة بنجاح! ✅`, ephemeral: true });
         }
 
-        // تنفيذ إزالة عضو من التذكرة
         if (interaction.customId === 'remove_member_modal') {
             const rawInput = interaction.fields.getTextInputValue('target_user_id').replace(/[^0-9]/g, '');
             const targetMember = await interaction.guild.members.fetch(rawInput).catch(() => null);
