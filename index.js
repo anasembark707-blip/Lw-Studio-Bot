@@ -313,10 +313,11 @@ client.on('interactionCreate', async interaction => {
                 `📁 **4- هل يوجد دليل؟:** ${proofAns}`
             );
 
+        // أزرار التذكرة الأساسية مع زر الاستلام المباشر وزر خيارات التذكرة والإغلاق
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('ticket_options').setLabel('خيارات التذكرة ⚙').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق التذكرة ❌️').setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId('claim_request').setLabel('طلب استلام 📌').setStyle(ButtonStyle.Primary)
+            new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
         );
 
         const cleanMention = `<@&${ROLES.STAFF}>\n<@${interaction.user.id}>`;
@@ -367,35 +368,82 @@ client.on('interactionCreate', async interaction => {
         const { customId, channel, guild, member, user } = interaction;
         let config = getGuildConfig(guild.id);
 
-        if (customId === 'claim_request') {
+        // نظام استلام التذكرة المباشر (يعطيه نقطة وإيمبد نقاط ومنشن + يظهر تحته زر طلب الاستلام وترك)
+        if (customId === 'claim_ticket') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "عذراً، هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
             }
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy) {
-                return interaction.reply({ content: `عذراً، هذه التذكرة مسلّمة مسبقاً بواسطة <@${ticketData.claimedBy}>! ⚠️` });
+                return interaction.reply({ content: `تم استلام هذه التذكرة مسبقاً بواسطة <@${ticketData.claimedBy}>! ⚠️`, ephemeral: true });
             }
 
+            if (ticketData) ticketData.claimedBy = user.id;
+
+            await channel.permissionOverwrites.edit(user.id, {
+                SendMessages: true,
+                ViewChannel: true,
+                ReadMessageHistory: true
+            }).catch(() => {});
+
+            // إضافة نقطة للإداري المستلم
+            const pointsObj = config.points || {};
+            pointsObj[user.id] = (pointsObj[user.id] || 0) + 1;
+            config.points = pointsObj;
+            saveGuildConfig(guild.id, config);
+
+            // إيمبد النقاط المطلوب (نفس الصور)[cite: 2, 5]
+            const pointsEmbed = new EmbedBuilder()
+                .setColor(0x00FF00)
+                .setDescription(`تم اعطائك 1 نقطة نقاطك الان : ${pointsObj[user.id]}`);
+
+            // أزرار طلب الاستلام والترك التي تظهر تحت إيمبد الاستلام (للإدارة الصغرى للمساعدة)
+            const subRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('claim_request').setLabel('طلب استلام 📌').setStyle(ButtonStyle.Primary),
+                new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك ⛔️').setStyle(ButtonStyle.Danger)
+            );
+
+            await channel.send({ 
+                content: `<@${user.id}>`, 
+                embeds: [pointsEmbed], 
+                components: [subRow] 
+            });
+
+            return interaction.reply({ content: "تم الاستلام بنجاح.", ephemeral: true });
+        }
+
+        // نظام طلب الاستلام الثانوي (بواسطة الإدارة الصغرى لمساعدة المستلم الأول)
+        if (customId === 'claim_request') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "عذراً، هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
+            }
+            const ticketData = activeTickets.get(channel.id);
+            if (!ticketData || !ticketData.claimedBy) {
+                return interaction.reply({ content: "يجب استلام التذكرة أولاً قبل إرسال طلب استلام ثانوي! ⚠️", ephemeral: true });
+            }
+
+            // إرسال رسالة للمستلم الأساسي أو الإدارة للقبول/الرفض
             const requestEmbed = new EmbedBuilder()
                 .setColor(0x5865F2)
-                .setDescription(`**طلب استلام التذكرة بواسطة:** <@${user.id}>\n**أيدي:** \`${user.id}\``)
+                .setDescription(`**طلب استلام إضافي للتذكرة بواسطة:** <@${user.id}>\n**أيدي:** \`${user.id}\``)
                 .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`accept_claim_${user.id}`).setLabel('قبول الطلب ✅️').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`accept_sub_claim_${user.id}`).setLabel('قبول الطلب ✅️').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('reject_claim').setLabel('رفض الطلب ❌️').setStyle(ButtonStyle.Danger)
             );
 
             await channel.send({ 
-                content: `<@&${ROLES.STAFF}>`, 
+                content: `<@${ticketData.claimedBy}>`, 
                 embeds: [requestEmbed], 
                 components: [row] 
             });
 
-            return interaction.reply({ content: "تم إرسال طلب الاستلام للإدارة بنجاح! ✅", ephemeral: true });
+            return interaction.reply({ content: "تم إرسال طلب الاستلام إلى مستلم التذكرة بنجاح! ✅", ephemeral: true });
         }
 
-        if (customId.startsWith('accept_claim_') || customId === 'reject_claim') {
+        // قبول أو رفض طلب الاستلام الفرعي
+        if (customId.startsWith('accept_sub_claim_') || customId === 'reject_claim') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "عذراً، هذا القرار خاص بفريق الإدارة فقط! ❌", ephemeral: true });
             }
@@ -405,18 +453,11 @@ client.on('interactionCreate', async interaction => {
                 return;
             }
 
-            const targetStaffId = customId.replace('accept_claim_', '');
+            const targetStaffId = customId.replace('accept_sub_claim_', '');
             
             if (user.id === targetStaffId) {
                 return interaction.reply({ content: "عذراً، لا يمكنك قبول طلبك بنفسك! ❌", ephemeral: true });
             }
-
-            const ticketData = activeTickets.get(channel.id);
-            if (ticketData && ticketData.claimedBy) {
-                return interaction.reply({ content: `عذراً، تم استلام التذكرة مسبقاً! ⚠️`, ephemeral: true });
-            }
-
-            if (ticketData) ticketData.claimedBy = targetStaffId;
 
             await channel.permissionOverwrites.edit(targetStaffId, {
                 SendMessages: true,
@@ -424,30 +465,15 @@ client.on('interactionCreate', async interaction => {
                 ReadMessageHistory: true
             }).catch(() => {});
 
-            const pointsObj = config.points || {};
-            const currentPoints = pointsObj[user.id] || 0;
-            pointsObj[user.id] = Math.max(0, currentPoints - 1);
-            
-            config.points = pointsObj;
-            saveGuildConfig(guild.id, config);
-
             await interaction.update({ embeds: [], components: [] });
 
             const acceptEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
-                .setTitle("**تم قبول طلب الاستلام ✅**")
-                .setDescription(
-                    `**تم تسليم التذكرة بواسطة الأدمن المقبول:** <@${user.id}>\n` +
-                    `**إلى الأدمن الطالب:** <@${targetStaffId}>\n` +
-                    `**أيدي الطالب:** \`${targetStaffId}\` 👤\n\n` +
-                    `**تم خصم نقطة ➖️ 1 من الإداري المقبّل:** <@${user.id}> 📉\n` +
-                    `**إجمالي نقاطه الحالي = ${pointsObj[user.id]} 📊**`
-                )
-                .setTimestamp()
-                .setFooter({ text: "Lw Studio Bot | Tickets System", iconURL: guild.iconURL() });
+                .setTitle("**تم قبول الإداري المساعد ✅**")
+                .setDescription(`**تم إضافة العضو للإدارة المساعدة في التذكرة:** <@${targetStaffId}> 👤`)
+                .setTimestamp();
 
             await channel.send({ embeds: [acceptEmbed] });
-
             return;
         }
 
@@ -456,12 +482,49 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: "ليس لديك صلاحية لاستخدام هذه الخيارات ❌", ephemeral: true });
             }
 
-            const row = new ActionRowBuilder().addComponents(
+            // إضافة أزرار "إضافة عضو" و "إزالة عضو" في قائمة الخيارات
+            const row1 = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('opt_rename_menu').setLabel('تغيير اسم التذكرة 🎟').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setCustomId('opt_warn').setLabel('تنبيه العضو ⚠️').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('opt_summon').setLabel('استدعاء الإداري ☑️').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row] });
+            const row2 = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('add_member_prompt').setLabel('إضافة عضو للتذكرة ➕').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('remove_member_prompt').setLabel('إزالة عضو من التذكرة ➖').setStyle(ButtonStyle.Danger)
+            );
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: true });
+        }
+
+        // نافذة إضافة عضو
+        if (customId === 'add_member_prompt') {
+            const modal = new ModalBuilder()
+                .setCustomId('add_member_modal')
+                .setTitle('إضافة عضو للتذكرة ➕');
+
+            const input = new TextInputBuilder()
+                .setCustomId('target_user_id')
+                .setLabel('اكتب أيدي (ID) العضو أو منشنه')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(input));
+            return interaction.showModal(modal);
+        }
+
+        // نافذة إزالة عضو
+        if (customId === 'remove_member_prompt') {
+            const modal = new ModalBuilder()
+                .setCustomId('remove_member_modal')
+                .setTitle('إزالة عضو من التذكرة ➖');
+
+            const input = new TextInputBuilder()
+                .setCustomId('target_user_id')
+                .setLabel('اكتب أيدي (ID) العضو المراد إزالته')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(input));
+            return interaction.showModal(modal);
         }
 
         if (customId === 'opt_rename_menu') {
@@ -471,7 +534,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('req_support').setLabel('مطلوب مسؤولين الدعم الفني 🧑‍💻').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغيير اسم مخصص 🎫').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row] });
+            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", ephemeral: true });
         }
 
         if (['req_ban', 'req_comp', 'req_support'].includes(customId)) {
@@ -585,7 +648,7 @@ client.on('interactionCreate', async interaction => {
                 saveGuildConfig(guild.id, config);
 
                 const claimRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('claim_request').setLabel('طلب استلام 📌').setStyle(ButtonStyle.Primary)
+                    new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام التذكرة ✅').setStyle(ButtonStyle.Success)
                 );
 
                 await channel.send(`الأدمن <@${oldClaimer}> ترك التذكرة وتم خصم نقطة **1** 📉`);
@@ -660,17 +723,52 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    if (interaction.isModalSubmit() && interaction.customId === 'custom_rename_modal') {
-        const timeLeft = checkCooldown(interaction.user.id);
-        if (timeLeft > 0) {
-            return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
+    if (interaction.isModalSubmit()) {
+        // تنفيذ تغيير الاسم المخصص
+        if (interaction.customId === 'custom_rename_modal') {
+            const timeLeft = checkCooldown(interaction.user.id);
+            if (timeLeft > 0) {
+                return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
+            }
+
+            const newName = interaction.fields.getTextInputValue('new_ticket_name');
+            renameCooldowns.set(interaction.user.id, Date.now());
+
+            await interaction.channel.setName(newName).catch(() => {});
+            return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: true });
         }
 
-        const newName = interaction.fields.getTextInputValue('new_ticket_name');
-        renameCooldowns.set(interaction.user.id, Date.now());
+        // تنفيذ إضافة عضو للتذكرة
+        if (interaction.customId === 'add_member_modal') {
+            const rawInput = interaction.fields.getTextInputValue('target_user_id').replace(/[^0-9]/g, '');
+            const targetMember = await interaction.guild.members.fetch(rawInput).catch(() => null);
 
-        await interaction.channel.setName(newName).catch(() => {});
-        return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: true });
+            if (!targetMember) {
+                return interaction.reply({ content: "عذراً، لم يتم العثور على العضو بهذا الأيدي! ❌", ephemeral: true });
+            }
+
+            await interaction.channel.permissionOverwrites.edit(targetMember.id, {
+                SendMessages: true,
+                ViewChannel: true,
+                ReadMessageHistory: true
+            }).catch(() => {});
+
+            return interaction.reply({ content: `تم إضافة العضو <@${targetMember.id}> إلى التذكرة بنجاح! ✅`, ephemeral: true });
+        }
+
+        // تنفيذ إزالة عضو من التذكرة
+        if (interaction.customId === 'remove_member_modal') {
+            const rawInput = interaction.fields.getTextInputValue('target_user_id').replace(/[^0-9]/g, '');
+            const targetMember = await interaction.guild.members.fetch(rawInput).catch(() => null);
+
+            if (!targetMember) {
+                return interaction.reply({ content: "عذراً، لم يتم العثور على العضو بهذا الأيدي! ❌", ephemeral: true });
+            }
+
+            await interaction.channel.permissionOverwrites.delete(targetMember.id).catch(() => {});
+
+            return interaction.reply({ content: `تم إزالة العضو <@${targetMember.id}> من التذكرة بنجاح! 🚫`, ephemeral: true });
+        }
     }
 });
 
