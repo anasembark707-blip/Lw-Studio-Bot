@@ -52,7 +52,8 @@ const CHANNELS = {
     LOG: "1550972645976309781",          // روم لوق تكتات
     CATEGORY: "1550992320835362846",     // كاتجوري تكتات تفعيل
     LAB_LOG: "1555934771274719362",      // روم فصل المختبرين
-    TIMEOUT_LOG: "1547308390844211250"  // روم كشف التايم
+    TIMEOUT_LOG: "1547308390844211250",  // روم كشف التايم
+    BAN_LOG: "1563288678061834381"      // روم كشف الباند
 };
 
 function getGuildConfig(guildId) {
@@ -207,9 +208,11 @@ client.on('messageCreate', async message => {
                     .setDescription(
                         `** تم اعطاء تايم اوت | Timeout **\n\n\n\n` +
                         `**الشخص المكتوم :**\n` +
-                        `الى [<@${targetMember.id}>]\n\n\n\n` +
+                        `<@${targetMember.id}>\n\n\n\n` +
+                        `**مدة التايم :**\n` +
+                        `${durationStr}\n\n\n\n` +
                         `**الاداري الي معطي التايم :**\n` +
-                        `[<@${message.author.id}>]\n\n\n\n` +
+                        `<@${message.author.id}>\n\n\n\n` +
                         `**سبب وضع التايم :**\n` +
                         `[${reason}]\n\n\n` +
                         `** **`
@@ -245,7 +248,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 3. أمر الباند الاختصار (-باند)
+    // 3. أمر الباند الاختصار (-باند) المحدث لكشف الباند المعدل
     if (command === '-باند') {
         if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
             return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
@@ -261,13 +264,39 @@ client.on('messageCreate', async message => {
             return message.reply("الرجاء كتابة سبب الباند بشكل إجباري! ❌");
         }
 
+        const targetUserTag = targetMember.user.username;
+        const targetUserId = targetMember.id;
+
         try {
             await targetMember.ban({ reason });
             await message.delete().catch(() => {});
-            return message.channel.send(`تم حظر العضو <@${targetMember.id}> بنجاح ✅ | **السبب:** ${reason}`);
+            await message.channel.send(`تم حظر العضو <@${targetUserId}> بنجاح ✅ | **السبب:** ${reason}`);
+
+            // إرسال كشف الباند بالصيغة والتنسيق المطلوبة بـ المنشن الصريح
+            const banLogChannel = message.guild.channels.cache.get(CHANNELS.BAN_LOG);
+            if (banLogChannel) {
+                const banEmbed = new EmbedBuilder()
+                    .setColor(0xFF0000)
+                    .setDescription(
+                        `** تم اعطاء باند | Ban **\n\n\n\n` +
+                        `**الشخص المتبند :**\n` +
+                        `يوزر : ${targetUserTag}\n` +
+                        `ألايدي : ${targetUserId}\n\n\n\n` +
+                        `**الاداري الي معطي الباند :**\n` +
+                        `<@${message.author.id}>\n\n\n\n` +
+                        `**سبب وضع الباند :**\n` +
+                        `[${reason}]\n\n\n` +
+                        `** **`
+                    )
+                    .setTimestamp();
+
+                await banLogChannel.send({ embeds: [banEmbed] });
+            }
         } catch (err) {
+            console.error(err);
             return message.channel.send("تعذر تبنيد العضو، يرجى التأكد من صلاحيات البوت! ❌");
         }
+        return;
     }
 
     // 4. أمر فك الباند الاختصار (-تعال)
@@ -298,7 +327,6 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, member, guild } = interaction;
 
-        // التحقق من صلاحيات الأدمنستريتور للأوامر الأربعة
         if (['alltimeout', 'allban', 'alluntimeout', 'allunban'].includes(commandName)) {
             if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
                 return interaction.reply({ content: "عذراً، هذا الأمر مخصص لأصحاب صلاحيات الأدمنستريتور (Administrator) فقط! ❌", ephemeral: false });
@@ -306,7 +334,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'alltimeout') {
-            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
+            await interaction.deferReply({ ephemeral: false });
             const members = await guild.members.fetch();
             const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
 
@@ -333,7 +361,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'allban') {
-            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
+            await interaction.deferReply({ ephemeral: false });
             const bans = await guild.bans.fetch();
 
             if (bans.size === 0) {
@@ -361,7 +389,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'alluntimeout') {
-            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
+            await interaction.deferReply({ ephemeral: false });
             const members = await guild.members.fetch();
             const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
 
@@ -384,7 +412,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'allunban') {
-            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
+            await interaction.deferReply({ ephemeral: false });
             const bans = await guild.bans.fetch();
 
             if (bans.size === 0) {
@@ -476,7 +504,7 @@ client.on('interactionCreate', async interaction => {
                 .setTitle("**نقاط التذاكر 📊**")
                 .setDescription(desc);
 
-            return interaction.reply({ embeds: [embed], ephemeral: false }); // إرسال علني في الروم
+            return interaction.reply({ embeds: [embed], ephemeral: false });
         }
 
         if (commandName === 'restpointict') {
@@ -750,7 +778,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('add_member_prompt').setLabel('إضافة عضو للتذكرة ➕').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('remove_member_prompt').setLabel('إزالة عضو من التذكرة ➖').setStyle(ButtonStyle.Danger)
             );
-            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: false }); // إرسال علني بالروم
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: false });
         }
 
         if (customId === 'add_member_prompt') {
@@ -790,7 +818,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('req_support').setLabel('مطلوب مسؤولين الدعم الفني 🧑‍💻').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغيير اسم مخصص 🎫').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", ephemeral: false }); // علني
+            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", ephemeral: false });
         }
 
         if (['req_ban', 'req_comp', 'req_support'].includes(customId)) {
