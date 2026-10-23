@@ -135,7 +135,6 @@ client.once('ready', async () => {
                 option.setName('reason')
                     .setDescription('سبب الفصل')
                     .setRequired(true)),
-        // الأوامر الجديدة الخاصة بالأدمنستريتور (عرض وفك الباندات والتايمات)
         new SlashCommandBuilder()
             .setName('alltimeout')
             .setDescription('عرض قائمة بجميع الأعضاء الذين عليهم تايم أوت (للأدمن فقط)'),
@@ -299,15 +298,15 @@ client.on('interactionCreate', async interaction => {
     if (interaction.isChatInputCommand()) {
         const { commandName, member, guild } = interaction;
 
-        // التحقق من صلاحيات الأدمنستريتور للأوامر الأربعة الجديدة
+        // التحقق من صلاحيات الأدمنستريتور للأوامر الأربعة
         if (['alltimeout', 'allban', 'alluntimeout', 'allunban'].includes(commandName)) {
             if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                return interaction.reply({ content: "عذراً، هذا الأمر مخصص لأصحاب صلاحيات الأدمنستريتور (Administrator) فقط! ❌", ephemeral: true });
+                return interaction.reply({ content: "عذراً، هذا الأمر مخصص لأصحاب صلاحيات الأدمنستريتور (Administrator) فقط! ❌", ephemeral: false });
             }
         }
 
         if (commandName === 'alltimeout') {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
             const members = await guild.members.fetch();
             const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
 
@@ -317,12 +316,10 @@ client.on('interactionCreate', async interaction => {
 
             let desc = "";
             let index = 1;
-            // ترتيب من الأعلى للأصغر (بناءً على تاريخ انتهاء التايم أو وقت الانضمام)
             const sorted = Array.from(timedOutMembers.values());
 
             for (const m of sorted) {
-                const timeoutUntil = m.communicationDisabledUntilTimestamp;
-                desc += `**${index}.** <@${m.id}> (\`${m.id}\`)\n   • **السبب:** ${m.communicationDisabledUntil ? 'مكتوم مؤقتاً' : 'غير متوفر'}\n\n`;
+                desc += `**${index}.** <@${m.id}> (\`${m.id}\`)\n   • **الحالة:** مكتوم مؤقتاً\n\n`;
                 index++;
             }
 
@@ -336,14 +333,13 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'allban') {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
             const bans = await guild.bans.fetch();
 
             if (bans.size === 0) {
                 return interaction.editReply({ content: "لا يوجد أعضاء مبندين في السيرفر حالياً! 🛡️" });
             }
 
-            // ترتيب المبندين من الأقدم إلى الأحدث (حسب جلب الديسكورد للباندز)
             const banArray = Array.from(bans.values());
             let desc = "";
             let index = 1;
@@ -352,7 +348,7 @@ client.on('interactionCreate', async interaction => {
                 const reason = b.reason || "بدون سبب مدخل";
                 desc += `**${index}.** **${b.user.tag}** (\`${b.user.id}\`)\n   • **السبب:** ${reason}\n\n`;
                 index++;
-                if (index > 25) break; // عرض أول 25 لكي لا يتخطى حد الإيمبد
+                if (index > 25) break;
             }
 
             const embed = new EmbedBuilder()
@@ -365,7 +361,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'alluntimeout') {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
             const members = await guild.members.fetch();
             const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
 
@@ -388,7 +384,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (commandName === 'allunban') {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ ephemeral: false }); // إرسال علني في الروم
             const bans = await guild.bans.fetch();
 
             if (bans.size === 0) {
@@ -411,7 +407,7 @@ client.on('interactionCreate', async interaction => {
 
         if (commandName === 'laboratory-session') {
             if (!member.roles.cache.has(ROLES.LAB_ROLE)) {
-                return interaction.reply({ content: "عذراً، هذا الأمر خاص برتبة مختبرين محددة فقط! ❌", ephemeral: true });
+                return interaction.reply({ content: "عذراً، هذا الأمر خاص برتبة مختبرين محددة فقط! ❌", ephemeral: false });
             }
 
             const targetUser = interaction.options.getUser('user');
@@ -419,7 +415,7 @@ client.on('interactionCreate', async interaction => {
             const targetChannel = guild.channels.cache.get(CHANNELS.LAB_LOG);
 
             if (!targetChannel) {
-                return interaction.reply({ content: "روم فصل المختبرين غير محدد أو غير موجود! ❌", ephemeral: true });
+                return interaction.reply({ content: "روم فصل المختبرين غير محدد أو غير موجود! ❌", ephemeral: false });
             }
 
             const labEmbed = new EmbedBuilder()
@@ -433,15 +429,15 @@ client.on('interactionCreate', async interaction => {
                 .setTimestamp();
 
             await targetChannel.send({ embeds: [labEmbed] });
-            return interaction.reply({ content: "تم إرسال بلاغ الفصل بنجاح إلى روم المختبرين! ✅", ephemeral: true });
+            return interaction.reply({ content: "تم إرسال بلاغ الفصل بنجاح إلى روم المختبرين! ✅", ephemeral: false });
         }
 
         if (commandName === 'setup-tickets') {
             if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                return interaction.reply({ content: "عذراً، هذا الأمر للأصحاب الصلاحيات (Administrator) فقط! ❌", ephemeral: true });
+                return interaction.reply({ content: "عذراً، هذا الأمر للأصحاب الصلاحيات (Administrator) فقط! ❌", ephemeral: false });
             }
 
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ ephemeral: false });
 
             const embed = new EmbedBuilder()
                 .setColor(0x5865F2)
@@ -480,17 +476,17 @@ client.on('interactionCreate', async interaction => {
                 .setTitle("**نقاط التذاكر 📊**")
                 .setDescription(desc);
 
-            return interaction.reply({ embeds: [embed], ephemeral: true });
+            return interaction.reply({ embeds: [embed], ephemeral: false }); // إرسال علني في الروم
         }
 
         if (commandName === 'restpointict') {
             if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-                return interaction.reply({ content: "هذا الأمر للإدارة العليا فقط! ❌", ephemeral: true });
+                return interaction.reply({ content: "هذا الأمر للإدارة العليا فقط! ❌", ephemeral: false });
             }
             const config = getGuildConfig(guild.id);
             config.points = {};
             saveGuildConfig(guild.id, config);
-            return interaction.reply({ content: "تم تصفير نقاط الفريق الإداري بنجاح! 🔄", ephemeral: true });
+            return interaction.reply({ content: "تم تصفير نقاط الفريق الإداري بنجاح! 🔄", ephemeral: false });
         }
     }
 
@@ -742,7 +738,7 @@ client.on('interactionCreate', async interaction => {
 
         if (customId === 'ticket_options') {
             if (!member.roles.cache.has(ROLES.STAFF) && member.id !== activeTickets.get(channel.id)?.userId) {
-                return interaction.reply({ content: "ليس لديك صلاحية لاستخدام هذه الخيارات ❌", ephemeral: true });
+                return interaction.reply({ content: "ليس لديك صلاحية لاستخدام هذه الخيارات ❌", ephemeral: false });
             }
 
             const row1 = new ActionRowBuilder().addComponents(
@@ -754,7 +750,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('add_member_prompt').setLabel('إضافة عضو للتذكرة ➕').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('remove_member_prompt').setLabel('إزالة عضو من التذكرة ➖').setStyle(ButtonStyle.Danger)
             );
-            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: true });
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: false }); // إرسال علني بالروم
         }
 
         if (customId === 'add_member_prompt') {
@@ -794,13 +790,13 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('req_support').setLabel('مطلوب مسؤولين الدعم الفني 🧑‍💻').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغيير اسم مخصص 🎫').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", ephemeral: true });
+            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", ephemeral: false }); // علني
         }
 
         if (['req_ban', 'req_comp', 'req_support'].includes(customId)) {
             const timeLeft = checkCooldown(user.id);
             if (timeLeft > 0) {
-                return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
+                return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: false });
             }
 
             let roleId = ROLES.SUPPORT;
@@ -827,13 +823,13 @@ client.on('interactionCreate', async interaction => {
 
             await channel.setName(newChannelName).catch(() => {});
             await channel.send(`${roleName} <@&${roleId}>\nالرجاء الانتظار 🤍.`);
-            return interaction.reply({ content: `تم تغيير اسم التذكرة وإرسال الطلب إلى **${roleName}** بنجاح! ✅`, ephemeral: true });
+            return interaction.reply({ content: `تم تغيير اسم التذكرة وإرسال الطلب إلى **${roleName}** بنجاح! ✅`, ephemeral: false });
         }
 
         if (customId === 'custom_rename_prompt') {
             const timeLeft = checkCooldown(user.id);
             if (timeLeft > 0) {
-                return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
+                return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: false });
             }
 
             const modal = new ModalBuilder()
@@ -852,7 +848,7 @@ client.on('interactionCreate', async interaction => {
 
         if (customId === 'opt_warn') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
-                return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
+                return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: false });
             }
             const ticketData = activeTickets.get(channel.id);
             if (!ticketData) return;
@@ -870,7 +866,7 @@ client.on('interactionCreate', async interaction => {
             }, 5 * 60 * 1000);
 
             ticketData.timer = timer;
-            return interaction.reply({ content: "تم تفعيل التنبيه بنجاح.", ephemeral: true });
+            return interaction.reply({ content: "تم تفعيل التنبيه بنجاح.", ephemeral: false });
         }
 
         if (customId === 'opt_summon') {
@@ -880,18 +876,18 @@ client.on('interactionCreate', async interaction => {
             } else {
                 await channel.send(`تم استدعاء الإداري ☑ <@&${ROLES.STAFF}>`);
             }
-            return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: true });
+            return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: false });
         }
 
         if (customId === 'close_ticket') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
-                return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
+                return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: false });
             }
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('delete_ticket').setLabel('حذف التذكرة 🗑').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك التذكرة ⛔️').setStyle(ButtonStyle.Danger)
             );
-            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row] });
+            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row], ephemeral: false });
         }
 
         if (customId === 'leave_ticket') {
@@ -914,12 +910,12 @@ client.on('interactionCreate', async interaction => {
                 await channel.send(`الأدمن <@${oldClaimer}> ترك التذكرة وتم خصم نقطة **1** 📉`);
                 await channel.send({ content: `الرجاء من الفريق الإداري استلام التذكرة <@&${ROLES.STAFF}>`, components: [claimRow] });
             }
-            return interaction.reply({ content: "تم ترك التذكرة بنجاح.", ephemeral: true });
+            return interaction.reply({ content: "تم ترك التذكرة بنجاح.", ephemeral: false });
         }
 
         if (customId === 'delete_ticket') {
             const ticketData = activeTickets.get(channel.id);
-            await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄" });
+            await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄", ephemeral: false });
 
             let attachment = null;
             if (discordTranscripts) {
@@ -987,14 +983,14 @@ client.on('interactionCreate', async interaction => {
         if (interaction.customId === 'custom_rename_modal') {
             const timeLeft = checkCooldown(interaction.user.id);
             if (timeLeft > 0) {
-                return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
+                return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: false });
             }
 
             const newName = interaction.fields.getTextInputValue('new_ticket_name');
             renameCooldowns.set(interaction.user.id, Date.now());
 
             await interaction.channel.setName(newName).catch(() => {});
-            return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: true });
+            return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: false });
         }
 
         if (interaction.customId === 'add_member_modal') {
@@ -1002,7 +998,7 @@ client.on('interactionCreate', async interaction => {
             const targetMember = await interaction.guild.members.fetch(rawInput).catch(() => null);
 
             if (!targetMember) {
-                return interaction.reply({ content: "عذراً، لم يتم العثور على العضو بهذا الأيدي! ❌", ephemeral: true });
+                return interaction.reply({ content: "عذراً، لم يتم العثور على العضو بهذا الأيدي! ❌", ephemeral: false });
             }
 
             await interaction.channel.permissionOverwrites.edit(targetMember.id, {
@@ -1011,7 +1007,7 @@ client.on('interactionCreate', async interaction => {
                 ReadMessageHistory: true
             }).catch(() => {});
 
-            return interaction.reply({ content: `تم إضافة العضو <@${targetMember.id}> إلى التذكرة بنجاح! ✅`, ephemeral: true });
+            return interaction.reply({ content: `تم إضافة العضو <@${targetMember.id}> إلى التذكرة بنجاح! ✅`, ephemeral: false });
         }
 
         if (interaction.customId === 'remove_member_modal') {
@@ -1019,12 +1015,12 @@ client.on('interactionCreate', async interaction => {
             const targetMember = await interaction.guild.members.fetch(rawInput).catch(() => null);
 
             if (!targetMember) {
-                return interaction.reply({ content: "عذراً، لم يتم العثور على العضو بهذا الأيدي! ❌", ephemeral: true });
+                return interaction.reply({ content: "عذراً، لم يتم العثور على العضو بهذا الأيدي! ❌", ephemeral: false });
             }
 
             await interaction.channel.permissionOverwrites.delete(targetMember.id).catch(() => {});
 
-            return interaction.reply({ content: `تم إزالة العضو <@${targetMember.id}> من التذكرة بنجاح! 🚫`, ephemeral: true });
+            return interaction.reply({ content: `تم إزالة العضو <@${targetMember.id}> من التذكرة بنجاح! 🚫`, ephemeral: false });
         }
     }
 });
