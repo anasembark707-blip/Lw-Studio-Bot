@@ -325,7 +325,7 @@ client.on('messageCreate', async message => {
     }
 });
 
-// معالجة أوامر السلاش (Slash Commands) والتفاعلات
+// معالجة أوامر السلاش والتفاعلات
 client.on('interactionCreate', async interaction => {
     if (!interaction.guild) return;
 
@@ -966,7 +966,7 @@ client.on('interactionCreate', async interaction => {
 
         if (customId === 'delete_ticket') {
             const ticketData = activeTickets.get(channel.id);
-            await interaction.reply({ content: " ** جاري إغلاق التذكرة وسيتم حذف التذكرة... 🔄 ** ", ephemeral: false });
+            await interaction.reply({ content: " ** جاري إغلاق التذكرة وتوليد سجل المحادثات... 🔄 ** ", ephemeral: false });
 
             let attachment = null;
             if (discordTranscripts) {
@@ -1012,24 +1012,23 @@ client.on('interactionCreate', async interaction => {
                 .setTimestamp()
                 .setFooter({ text: "Lw Studio Bot • Log Archives", iconURL: guild.iconURL() });
 
-            // إرسال السجل إلى روم اللوق العام
+            // 1. إرسال السجل إلى روم لوق الإدارة
             if (CHANNELS.LOG) {
                 const logChan = guild.channels.cache.get(CHANNELS.LOG);
                 if (logChan) {
                     const sendPayload = { embeds: [logEmbed] };
                     if (attachment) sendPayload.files = [attachment];
-                    await logChan.send(sendPayload);
+                    await logChan.send(sendPayload).catch(e => console.error(e));
                 }
             }
 
-            // إرسال نسخة مطابقة من السجل إلى الخاص (DM) لصاحب التذكرة
+            // 2. إرسال السجل إلى خاص صاحب التذكرة (DM)
             if (ticketData && ticketData.userId) {
                 try {
-                    const ticketOwner = await guild.members.fetch(ticketData.userId).catch(() => null);
+                    const ticketOwner = await client.users.fetch(ticketData.userId).catch(() => null);
                     if (ticketOwner) {
                         const dmPayload = { embeds: [logEmbed] };
                         if (attachment) {
-                            // إعادة إنشاء الملف للخاص لكي لا يحدث خطأ في الستريم
                             const dmAttachment = await discordTranscripts.createTranscript(channel, {
                                 limit: -1,
                                 returnType: 'attachment',
@@ -1046,8 +1045,9 @@ client.on('interactionCreate', async interaction => {
                 }
             }
 
+            // 3. حذف التذكرة بعد اكتمال الإرسال
             activeTickets.delete(channel.id);
-            setTimeout(() => channel.delete().catch(() => {}), 3000);
+            setTimeout(() => channel.delete().catch(() => {}), 5000);
             return;
         }
     }
