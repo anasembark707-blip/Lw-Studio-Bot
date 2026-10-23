@@ -248,7 +248,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 3. أمر الباند الاختصار (-باند)
+    // 3. أمر الباند الاختصار (-باند) مع إمبد أحمر بالكامل
     if (command === '-باند') {
         if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
             return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
@@ -270,7 +270,13 @@ client.on('messageCreate', async message => {
         try {
             await targetMember.ban({ reason });
             await message.delete().catch(() => {});
-            await message.channel.send(`تم حظر العضو <@${targetUserId}> بنجاح ✅ | **السبب:** ${reason}`);
+
+            const successEmbed = new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle("**تم تبنيد الشخص بنجاح ✅️ ⛔**")
+                .setDescription(`**بواسطة :** <@${message.author.id}> | **الشخص :** <@${targetUserId}> | **السبب :** ${reason}`);
+
+            await message.channel.send({ embeds: [successEmbed] });
 
             const banLogChannel = message.guild.channels.cache.get(CHANNELS.BAN_LOG);
             if (banLogChannel) {
@@ -319,7 +325,7 @@ client.on('messageCreate', async message => {
     }
 });
 
-// معالجة أوامر السلاش (Slash Commands)
+// معالجة أوامر السلاش (Slash Commands) والتفاعلات
 client.on('interactionCreate', async interaction => {
     if (!interaction.guild) return;
 
@@ -596,7 +602,6 @@ client.on('interactionCreate', async interaction => {
             permissionOverwrites: overwrites,
         });
 
-        // تم حصر الإجابات داخل كود بلاك الثلاثي (```) لسهولة النسخ للإدارة
         const embed = new EmbedBuilder()
             .setColor(0x00FF00)
             .setTitle(`**تم فتح تذكرة [ ${ticketType} ]**`)
@@ -699,7 +704,7 @@ client.on('interactionCreate', async interaction => {
                 components: [subRow] 
             });
 
-            return interaction.reply({ content: "تم الاستلام بنجاح.", ephemeral: true }); // مخفية لتجنب الزحمة
+            return interaction.reply({ content: "تم الاستلام بنجاح.", ephemeral: true });
         }
 
         if (customId === 'claim_request') {
@@ -727,7 +732,7 @@ client.on('interactionCreate', async interaction => {
                 components: [row] 
             });
 
-            return interaction.reply({ content: "تم إرسال طلب الاستلام إلى مستلم التذكرة بنجاح! ✅", ephemeral: true }); // مخفية
+            return interaction.reply({ content: "تم إرسال طلب الاستلام إلى مستلم التذكرة بنجاح! ✅", ephemeral: true });
         }
 
         if (customId.startsWith('accept_sub_claim_') || customId === 'reject_claim') {
@@ -778,10 +783,13 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('add_member_prompt').setLabel('إضافة عضو للتذكرة ➕').setStyle(ButtonStyle.Success),
                 new ButtonBuilder().setCustomId('remove_member_prompt').setLabel('إزالة عضو من التذكرة ➖').setStyle(ButtonStyle.Danger)
             );
-            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: true }); // مخفية منعاً للزحمة
+            return interaction.reply({ content: "خيارات التذكرة المتاحة ⚙️:", components: [row1, row2], ephemeral: true });
         }
 
         if (customId === 'add_member_prompt') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "عذراً، هذا الإجراء لفريق الإدارة فقط! ❌", ephemeral: true });
+            }
             const modal = new ModalBuilder()
                 .setCustomId('add_member_modal')
                 .setTitle('إضافة عضو للتذكرة ➕');
@@ -797,6 +805,9 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (customId === 'remove_member_prompt') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "عذراً، هذا الإجراء لفريق الإدارة فقط! ❌", ephemeral: true });
+            }
             const modal = new ModalBuilder()
                 .setCustomId('remove_member_modal')
                 .setTitle('إزالة عضو من التذكرة ➖');
@@ -811,18 +822,25 @@ client.on('interactionCreate', async interaction => {
             return interaction.showModal(modal);
         }
 
-        // عرض جميع خيارات تغيير اسم التذكرة (الأربعة كاملة)
         if (customId === 'opt_rename_menu') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "عذراً، خيارات تغيير اسم التذكرة مخصصة للفريق الإداري فقط! ❌", ephemeral: true });
+            }
+
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('req_ban').setLabel('مطلوب مسؤولين الباند 🔺️').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('req_comp').setLabel('مطلوب مسؤولين التعويض 💸').setStyle(ButtonStyle.Primary),
                 new ButtonBuilder().setCustomId('req_support').setLabel('مطلوب مسؤولين الدعم الفني 🧑‍💻').setStyle(ButtonStyle.Secondary),
                 new ButtonBuilder().setCustomId('custom_rename_prompt').setLabel('تغيير اسم مخصص 🎫').setStyle(ButtonStyle.Success)
             );
-            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row], ephemeral: true }); // مخفية منعاً للزحمة
+            return interaction.reply({ content: "تغيير اسم التذكرة 🎟\nاختر أحد الخيارات أدناه:", components: [row], ephemeral: true });
         }
 
         if (['req_ban', 'req_comp', 'req_support'].includes(customId)) {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "عذراً، هذا الإجراء مخصص للفريق الإداري فقط! ❌", ephemeral: true });
+            }
+
             const timeLeft = checkCooldown(user.id);
             if (timeLeft > 0) {
                 return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
@@ -851,11 +869,15 @@ client.on('interactionCreate', async interaction => {
             renameCooldowns.set(user.id, Date.now());
 
             await channel.setName(newChannelName).catch(() => {});
-            await channel.send(`${roleName} <@&${roleId}>\nالرجاء الانتظار 🤍.`); // علني للمنشن
-            return interaction.reply({ content: `تم تغيير اسم التذكرة وإرسال الطلب إلى **${roleName}** بنجاح! ✅`, ephemeral: true }); // مخفي
+            await channel.send(`${roleName} <@&${roleId}>\nالرجاء الانتظار 🤍.`);
+            return interaction.reply({ content: `تم تغيير اسم التذكرة وإرسال الطلب إلى **${roleName}** بنجاح! ✅`, ephemeral: true });
         }
 
         if (customId === 'custom_rename_prompt') {
+            if (!member.roles.cache.has(ROLES.STAFF)) {
+                return interaction.reply({ content: "عذراً، هذا الإجراء مخصص للفريق الإداري فقط! ❌", ephemeral: true });
+            }
+
             const timeLeft = checkCooldown(user.id);
             if (timeLeft > 0) {
                 return interaction.reply({ content: `عذراً، يجب عليك الانتظار **${timeLeft}** ثانية قبل تغيير اسم التذكرة مرة أخرى! ⏳`, ephemeral: true });
@@ -886,7 +908,7 @@ client.on('interactionCreate', async interaction => {
                 `تم تفعيل وضع التنبيه ⚠️\n` +
                 `لـ العضو <@${ticketData.userId}>\n` +
                 `اذا لم يتم الرد في ٥ دقائق سيتم إغلاق التذكرة تلقائياً.`
-            ); // علني
+            );
 
             const timer = setTimeout(async () => {
                 activeTickets.delete(channel.id);
@@ -895,7 +917,7 @@ client.on('interactionCreate', async interaction => {
             }, 5 * 60 * 1000);
 
             ticketData.timer = timer;
-            return interaction.reply({ content: "تم تفعيل التنبيه بنجاح.", ephemeral: true }); // مخفي
+            return interaction.reply({ content: "تم تفعيل التنبيه بنجاح.", ephemeral: true });
         }
 
         if (customId === 'opt_summon') {
@@ -905,7 +927,7 @@ client.on('interactionCreate', async interaction => {
             } else {
                 await channel.send(`تم استدعاء الإداري ☑ <@&${ROLES.STAFF}>`);
             }
-            return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: true }); // مخفي
+            return interaction.reply({ content: "تم الاستدعاء بنجاح.", ephemeral: true });
         }
 
         if (customId === 'close_ticket') {
@@ -916,7 +938,7 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('delete_ticket').setLabel('حذف التذكرة 🗑').setStyle(ButtonStyle.Danger),
                 new ButtonBuilder().setCustomId('leave_ticket').setLabel('ترك التذكرة ⛔️').setStyle(ButtonStyle.Danger)
             );
-            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row], ephemeral: false }); // علني
+            return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row], ephemeral: false });
         }
 
         if (customId === 'leave_ticket') {
@@ -961,44 +983,66 @@ client.on('interactionCreate', async interaction => {
                 }
             }
 
+            const closeDateObj = new Date();
+            const formattedCloseDate = closeDateObj.toLocaleString('en-US', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric', 
+                hour: 'numeric', 
+                minute: '2-digit', 
+                hour12: true 
+            });
+
+            const logEmbed = new EmbedBuilder()
+                .setColor(0x2F3136)
+                .setTitle("**🔒 | سجل إغلاق تذكرة جديدة**")
+                .setDescription("**تم إغلاق التذكرة بنجاح وحفظ تفاصيلها أدناه:**")
+                .addFields(
+                    { name: "**📌 اسم التذكرة:**", value: `\`${channel.name}\``, inline: true },
+                    { name: "**🎫 نوع التذكرة:**", value: `\`${ticketData ? ticketData.ticketTypeName : 'غير معروف'}\``, inline: true },
+                    { name: "\u200b", value: "\u200b", inline: false },
+                    { name: "**👤 صاحب التذكرة:**", value: `<@${ticketData ? ticketData.userId : 'غير معروف'}>`, inline: true },
+                    { name: "**🛡️ مستلم التذكرة:**", value: `${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>` : '**لم يتم الاستلام**'}`, inline: true },
+                    { name: "\u200b", value: "\u200b", inline: false },
+                    { name: "**🛠️ حذفت التذكرة بواسطة:**", value: `<@${user.id}>`, inline: true },
+                    { name: "**⏱️ وقت فتحها:**", value: `\`${ticketData ? ticketData.createdAtFormatted : 'غير متوفر'}\``, inline: false },
+                    { name: "**🏁 وقت إغلاقها:**", value: `\`${formattedCloseDate}\``, inline: false }
+                )
+                .setTimestamp()
+                .setFooter({ text: "Lw Studio Bot • Log Archives", iconURL: guild.iconURL() });
+
+            // إرسال السجل إلى روم اللوق العام
             if (CHANNELS.LOG) {
                 const logChan = guild.channels.cache.get(CHANNELS.LOG);
                 if (logChan) {
-                    const closeDateObj = new Date();
-                    const formattedCloseDate = closeDateObj.toLocaleString('en-US', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric', 
-                        hour: 'numeric', 
-                        minute: '2-digit', 
-                        hour12: true 
-                    });
-                    
-                    const logEmbed = new EmbedBuilder()
-                        .setColor(0x2F3136)
-                        .setTitle("**🔒 | سجل إغلاق تذكرة جديدة**")
-                        .setDescription("**تم إغلاق التذكرة بنجاح وحفظ تفاصيلها أدناه:**")
-                        .addFields(
-                            { name: "**📌 اسم التذكرة:**", value: `\`${channel.name}\``, inline: true },
-                            { name: "**🎫 نوع التذكرة:**", value: `\`${ticketData ? ticketData.ticketTypeName : 'غير معروف'}\``, inline: true },
-                            { name: "\u200b", value: "\u200b", inline: false },
-                            { name: "**👤 صاحب التذكرة:**", value: `<@${ticketData ? ticketData.userId : 'غير معروف'}>`, inline: true },
-                            { name: "**🛡️ مستلم التذكرة:**", value: `${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>` : '**لم يتم الاستلام**'}`, inline: true },
-                            { name: "\u200b", value: "\u200b", inline: false },
-                            { name: "**🛠️ حذفت التذكرة بواسطة:**", value: `<@${user.id}>`, inline: true },
-                            { name: "**⏱️ وقت فتحها:**", value: `\`${ticketData ? ticketData.createdAtFormatted : 'غير متوفر'}\``, inline: false },
-                            { name: "**🏁 وقت إغلاقها:**", value: `\`${formattedCloseDate}\``, inline: false }
-                        )
-                        .setTimestamp()
-                        .setFooter({ text: "Lw Studio Bot • Log Archives", iconURL: guild.iconURL() });
-
                     const sendPayload = { embeds: [logEmbed] };
-                    if (attachment) {
-                        sendPayload.files = [attachment];
-                    }
-
+                    if (attachment) sendPayload.files = [attachment];
                     await logChan.send(sendPayload);
+                }
+            }
+
+            // إرسال نسخة مطابقة من السجل إلى الخاص (DM) لصاحب التذكرة
+            if (ticketData && ticketData.userId) {
+                try {
+                    const ticketOwner = await guild.members.fetch(ticketData.userId).catch(() => null);
+                    if (ticketOwner) {
+                        const dmPayload = { embeds: [logEmbed] };
+                        if (attachment) {
+                            // إعادة إنشاء الملف للخاص لكي لا يحدث خطأ في الستريم
+                            const dmAttachment = await discordTranscripts.createTranscript(channel, {
+                                limit: -1,
+                                returnType: 'attachment',
+                                filename: `${channel.name}.html`,
+                                saveImages: true,
+                                poweredBy: false
+                            });
+                            dmPayload.files = [dmAttachment];
+                        }
+                        await ticketOwner.send(dmPayload).catch(() => {});
+                    }
+                } catch (dmErr) {
+                    console.error("تعذر إرسال السجل لخاص العضو:", dmErr);
                 }
             }
 
@@ -1019,7 +1063,7 @@ client.on('interactionCreate', async interaction => {
             renameCooldowns.set(interaction.user.id, Date.now());
 
             await interaction.channel.setName(newName).catch(() => {});
-            return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: true }); // مخفي
+            return interaction.reply({ content: `تم تغيير اسم التذكرة إلى: **${newName}** بنجاح! ✅`, ephemeral: true });
         }
 
         if (interaction.customId === 'add_member_modal') {
@@ -1036,7 +1080,7 @@ client.on('interactionCreate', async interaction => {
                 ReadMessageHistory: true
             }).catch(() => {});
 
-            return interaction.reply({ content: `تم إضافة العضو <@${targetMember.id}> إلى التذكرة بنجاح! ✅`, ephemeral: true }); // مخفي
+            return interaction.reply({ content: `تم إضافة العضو <@${targetMember.id}> إلى التذكرة بنجاح! ✅`, ephemeral: true });
         }
 
         if (interaction.customId === 'remove_member_modal') {
@@ -1049,7 +1093,7 @@ client.on('interactionCreate', async interaction => {
 
             await interaction.channel.permissionOverwrites.delete(targetMember.id).catch(() => {});
 
-            return interaction.reply({ content: `تم إزالة العضو <@${targetMember.id}> من التذكرة بنجاح! 🚫`, ephemeral: true }); // مخفي
+            return interaction.reply({ content: `تم إزالة العضو <@${targetMember.id}> من التذكرة بنجاح! 🚫`, ephemeral: true });
         }
     }
 });
