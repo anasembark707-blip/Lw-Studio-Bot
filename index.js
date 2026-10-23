@@ -179,12 +179,12 @@ client.on('messageCreate', async message => {
 
         const targetMember = message.mentions.members.first();
         if (!targetMember) {
-            return message.reply("الرجاء كتابة السبب ومنشنة الشخص وكتابة المدة ⚠️");
+            return message.reply(" ** الرجاء كتابة السبب ومنشن الشخص وكتابة المدة ⚠️ **");
         }
 
         const durationStr = args[2];
         const durationMs = parseDuration(durationStr);
-        const reason = args.slice(3).join(' ') || "بدون سبب مدخل";
+        const reason = args.slice(3).join(' ') || " بدون سبب مدخل ";
 
         if (!durationMs) {
             return message.reply("الرجاء كتابة السبب ومنشنة الشخص وكتابة المدة بشكل صحيح (مثال: `1d` أو `10m` أو `1h`) ⚠️");
@@ -943,7 +943,7 @@ client.on('interactionCreate', async interaction => {
 
         if (customId === 'delete_ticket') {
             const ticketData = activeTickets.get(channel.id);
-            await interaction.reply({ content: "جاري إغلاق التذكرة وتوليد ملف السجل الاحترافي... 🔄", ephemeral: false });
+            await interaction.reply({ content: " ** جاري إغلاق التذكرة وسيتم حذف التذكرة... 🔄 ** ", ephemeral: false });
 
             let attachment = null;
             if (discordTranscripts) {
@@ -985,7 +985,7 @@ client.on('interactionCreate', async interaction => {
                             { name: "**👤 صاحب التذكرة:**", value: `<@${ticketData ? ticketData.userId : 'غير معروف'}>`, inline: true },
                             { name: "**🛡️ مستلم التذكرة:**", value: `${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>` : '**لم يتم الاستلام**'}`, inline: true },
                             { name: "\u200b", value: "\u200b", inline: false },
-                            { name: "**🛠️ حذفت بواسطة:**", value: `<@${user.id}>`, inline: true },
+                            { name: "**🛠️ حذفت التذكرة بواسطة:**", value: `<@${user.id}>`, inline: true },
                             { name: "**⏱️ وقت فتحها:**", value: `\`${ticketData ? ticketData.createdAtFormatted : 'غير متوفر'}\``, inline: false },
                             { name: "**🏁 وقت إغلاقها:**", value: `\`${formattedCloseDate}\``, inline: false }
                         )
