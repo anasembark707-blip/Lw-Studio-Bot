@@ -98,7 +98,8 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildBans
     ]
 });
 
@@ -133,7 +134,20 @@ client.once('ready', async () => {
             .addStringOption(option => 
                 option.setName('reason')
                     .setDescription('سبب الفصل')
-                    .setRequired(true))
+                    .setRequired(true)),
+        // الأوامر الجديدة الخاصة بالأدمنستريتور (عرض وفك الباندات والتايمات)
+        new SlashCommandBuilder()
+            .setName('alltimeout')
+            .setDescription('عرض قائمة بجميع الأعضاء الذين عليهم تايم أوت (للأدمن فقط)'),
+        new SlashCommandBuilder()
+            .setName('allban')
+            .setDescription('عرض قائمة بجميع الأعضاء المبندين من الأقدم للأحدث (للأدمن فقط)'),
+        new SlashCommandBuilder()
+            .setName('alluntimeout')
+            .setDescription('إزالة التايم أوت عن جميع الأعضاء دفعة واحدة (للأدمن فقط)'),
+        new SlashCommandBuilder()
+            .setName('allunban')
+            .setDescription('إزالة الباند عن جميع الأعضاء المبندين دفعة واحدة (للأدمن فقط)')
     ];
 
     const botToken = process.env.DISCORD_TOKEN;
@@ -149,7 +163,7 @@ client.once('ready', async () => {
     }
 });
 
-// معالجة الأوامر النصية والاختصارات السريعة (-تايم، -تكلم، -باند، إلخ)
+// معالجة الأوامر النصية والاختصارات (-تايم، -تكلم، -باند، -تعال)
 client.on('messageCreate', async message => {
     if (message.author.bot || !message.guild) return;
 
@@ -157,8 +171,8 @@ client.on('messageCreate', async message => {
     const args = content.split(/\s+/);
     const command = args[0].toLowerCase();
 
-    // 1. أمر التايم أوت الاختصار (-تايم أو /time)
-    if (command === '-تايم' || command === '/time') {
+    // 1. أمر التايم أوت الاختصار (-تايم)
+    if (command === '-تايم') {
         if (!message.member.roles.cache.has(ROLES.STAFF)) {
             return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
         }
@@ -178,11 +192,8 @@ client.on('messageCreate', async message => {
 
         try {
             await targetMember.timeout(durationMs, reason);
-            
-            // حذف رسالة الإداري الأصلية فوراً
             await message.delete().catch(() => {});
 
-            // إرسال رد النجاح بالروم
             const successEmbed = new EmbedBuilder()
                 .setColor(0xFFFF00)
                 .setTitle("**تم اعطاء تايم بنجاح ✅️ ⚠️**")
@@ -190,7 +201,6 @@ client.on('messageCreate', async message => {
 
             await message.channel.send({ embeds: [successEmbed] });
 
-            // إرسال إمبد الأصفر في كشف التايم
             const timeLogChannel = message.guild.channels.cache.get(CHANNELS.TIMEOUT_LOG);
             if (timeLogChannel) {
                 const timeoutEmbed = new EmbedBuilder()
@@ -216,8 +226,8 @@ client.on('messageCreate', async message => {
         return;
     }
 
-    // 2. أمر إزالة التايم أوت الاختصار (-تكلم أو /untimeout)
-    if (command === '-تكلم' || command === '/untimeout') {
+    // 2. أمر إزالة التايم أوت الاختصار (-تكلم)
+    if (command === '-تكلم') {
         if (!message.member.roles.cache.has(ROLES.STAFF)) {
             return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
         }
@@ -236,47 +246,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 3. عرض قائمة المكتومين (alltimeout)
-    if (command === 'alltimeout') {
-        if (!message.member.roles.cache.has(ROLES.STAFF)) {
-            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
-        }
-
-        const members = await message.guild.members.fetch();
-        const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
-
-        if (timedOutMembers.size === 0) {
-            return message.reply("لا يوجد أسطورة ماخذ تايم أوت حالياً بالسيرفر! 🛡️");
-        }
-
-        const listDesc = timedOutMembers.map(m => `• <@${m.id}> (\`${m.id}\`)`).join('\n');
-        const embed = new EmbedBuilder()
-            .setColor(0xFFFF00)
-            .setTitle("**قائمة الأعضاء الآخذين تايم أوت ⏱️**")
-            .setDescription(listDesc);
-
-        return message.reply({ embeds: [embed] });
-    }
-
-    // 4. إزالة التايم أوت عن الجميع (alluntimeout)
-    if (command === 'alluntimeout') {
-        if (!message.member.roles.cache.has(ROLES.STAFF)) {
-            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (فريق الإدارة)! ❌");
-        }
-
-        const members = await message.guild.members.fetch();
-        const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
-
-        let count = 0;
-        for (const [id, m] of timedOutMembers) {
-            await m.timeout(null).catch(() => {});
-            count++;
-        }
-
-        return message.reply(`تم إزالة التايم أوت عن جميع الأعضاء المكتومين بنجاح! وعددهم: **${count}** 🔄`);
-    }
-
-    // 5. أمر الباند الاختصار (-باند)
+    // 3. أمر الباند الاختصار (-باند)
     if (command === '-باند') {
         if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
             return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
@@ -284,10 +254,13 @@ client.on('messageCreate', async message => {
 
         const targetMember = message.mentions.members.first();
         if (!targetMember) {
-            return message.reply("الرجاء منشن العضو المراد تبنيده! ⚠️");
+            return message.reply("الرجاء منشن العضو المراد تبنيده مع كتابة السبب! ⚠️");
         }
 
-        const reason = args.slice(2).join(' ') || "بدون سبب مدخل";
+        const reason = args.slice(2).join(' ');
+        if (!reason) {
+            return message.reply("الرجاء كتابة سبب الباند بشكل إجباري! ❌");
+        }
 
         try {
             await targetMember.ban({ reason });
@@ -298,7 +271,7 @@ client.on('messageCreate', async message => {
         }
     }
 
-    // 6. أمر فك الباند الاختصار (-تعال)
+    // 4. أمر فك الباند الاختصار (-تعال)
     if (command === '-تعال') {
         if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
             return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
@@ -317,49 +290,124 @@ client.on('messageCreate', async message => {
             return message.channel.send("لم يتم العثور على العضو في قائمة الحظر! ❌");
         }
     }
-
-    // 7. عرض قائمة المبندين (allban)
-    if (command === 'allban') {
-        if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
-            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
-        }
-
-        const bans = await message.guild.bans.fetch();
-        if (bans.size === 0) {
-            return message.reply("لا يوجد أعضاء مبندين بالسيرفر حالياً! 🛡️");
-        }
-
-        const listDesc = bans.map(b => `• **${b.user.tag}** (\`${b.user.id}\`)`).slice(0, 30).join('\n');
-        const embed = new EmbedBuilder()
-            .setColor(0xFF0000)
-            .setTitle(`**قائمة الأعضاء المبندين (الإجمالي: ${bans.size}) ⛔**`)
-            .setDescription(listDesc);
-
-        return message.reply({ embeds: [embed] });
-    }
-
-    // 8. إزالة الباند عن الجميع (allunban)
-    if (command === 'allunban') {
-        if (!message.member.roles.cache.has(ROLES.BAN_PERMISSION)) {
-            return message.reply("عذراً، لا يمكنك استخدام هذا الأمر إلا للرتبة المخصصة (تصريح باند)! ❌");
-        }
-
-        const bans = await message.guild.bans.fetch();
-        let count = 0;
-        for (const [id, ban] of bans) {
-            await message.guild.members.unban(id).catch(() => {});
-            count++;
-        }
-
-        return message.reply(`تم إزالة الحظر عن جميع الأعضاء المبندين بنجاح! وعددهم: **${count}** 🔓`);
-    }
 });
 
+// معالجة أوامر السلاش (Slash Commands)
 client.on('interactionCreate', async interaction => {
     if (!interaction.guild) return;
 
     if (interaction.isChatInputCommand()) {
         const { commandName, member, guild } = interaction;
+
+        // التحقق من صلاحيات الأدمنستريتور للأوامر الأربعة الجديدة
+        if (['alltimeout', 'allban', 'alluntimeout', 'allunban'].includes(commandName)) {
+            if (!member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                return interaction.reply({ content: "عذراً، هذا الأمر مخصص لأصحاب صلاحيات الأدمنستريتور (Administrator) فقط! ❌", ephemeral: true });
+            }
+        }
+
+        if (commandName === 'alltimeout') {
+            await interaction.deferReply({ ephemeral: true });
+            const members = await guild.members.fetch();
+            const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
+
+            if (timedOutMembers.size === 0) {
+                return interaction.editReply({ content: "لا يوجد أعضاء عليهم تايم أوت حالياً في السيرفر! 🛡️" });
+            }
+
+            let desc = "";
+            let index = 1;
+            // ترتيب من الأعلى للأصغر (بناءً على تاريخ انتهاء التايم أو وقت الانضمام)
+            const sorted = Array.from(timedOutMembers.values());
+
+            for (const m of sorted) {
+                const timeoutUntil = m.communicationDisabledUntilTimestamp;
+                desc += `**${index}.** <@${m.id}> (\`${m.id}\`)\n   • **السبب:** ${m.communicationDisabledUntil ? 'مكتوم مؤقتاً' : 'غير متوفر'}\n\n`;
+                index++;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0xFFFF00)
+                .setTitle(`**قائمة الأعضاء الذين عليهم تايم أوت (الإجمالي: ${timedOutMembers.size}) ⏱️**`)
+                .setDescription(desc)
+                .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
+        }
+
+        if (commandName === 'allban') {
+            await interaction.deferReply({ ephemeral: true });
+            const bans = await guild.bans.fetch();
+
+            if (bans.size === 0) {
+                return interaction.editReply({ content: "لا يوجد أعضاء مبندين في السيرفر حالياً! 🛡️" });
+            }
+
+            // ترتيب المبندين من الأقدم إلى الأحدث (حسب جلب الديسكورد للباندز)
+            const banArray = Array.from(bans.values());
+            let desc = "";
+            let index = 1;
+
+            for (const b of banArray) {
+                const reason = b.reason || "بدون سبب مدخل";
+                desc += `**${index}.** **${b.user.tag}** (\`${b.user.id}\`)\n   • **السبب:** ${reason}\n\n`;
+                index++;
+                if (index > 25) break; // عرض أول 25 لكي لا يتخطى حد الإيمبد
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0xFF0000)
+                .setTitle(`**قائمة الأعضاء المبندين (من الأقدم للأحدث) ⛔**`)
+                .setDescription(desc)
+                .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
+        }
+
+        if (commandName === 'alluntimeout') {
+            await interaction.deferReply({ ephemeral: true });
+            const members = await guild.members.fetch();
+            const timedOutMembers = members.filter(m => m.isCommunicationDisabled());
+
+            if (timedOutMembers.size === 0) {
+                return interaction.editReply({ content: "لا يوجد أعضاء عليهم تايم أوت لإزالته! 🛡️" });
+            }
+
+            let count = 0;
+            for (const [id, m] of timedOutMembers) {
+                await m.timeout(null).catch(() => {});
+                count++;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0x00FF00)
+                .setTitle("**تم إزالة التايم أوت عن الجميع بنجاح ✅**")
+                .setDescription(`تمت إزالة التايم أوت عن إجمالي **${count}** عضو.`);
+
+            return interaction.editReply({ embeds: [embed] });
+        }
+
+        if (commandName === 'allunban') {
+            await interaction.deferReply({ ephemeral: true });
+            const bans = await guild.bans.fetch();
+
+            if (bans.size === 0) {
+                return interaction.editReply({ content: "لا يوجد أعضاء مبندين لفك الحظر عنهم! 🛡️" });
+            }
+
+            let count = 0;
+            for (const [id, ban] of bans) {
+                await guild.members.unban(id).catch(() => {});
+                count++;
+            }
+
+            const embed = new EmbedBuilder()
+                .setColor(0x00FF00)
+                .setTitle("**تم فك الباند عن جميع المبندين بنجاح ✅**")
+                .setDescription(`تمت إزالة الحظر عن إجمالي **${count}** عضو.`);
+
+            return interaction.editReply({ embeds: [embed] });
+        }
 
         if (commandName === 'laboratory-session') {
             if (!member.roles.cache.has(ROLES.LAB_ROLE)) {
