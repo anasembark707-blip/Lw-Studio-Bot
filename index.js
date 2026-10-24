@@ -467,21 +467,16 @@ client.on('interactionCreate', async interaction => {
 
             await interaction.deferReply({ ephemeral: false });
 
-            // بنر التذاكر الرئيسي مع الترتيب المطلوب (مسافة وقبل الأخير نتمنى منكم عدم الاستهبال)
             const embed = new EmbedBuilder()
                 .setColor(0x5865F2)
                 .setTitle("**من هنا يمكنكم فتح تذكرة 🤍.**")
-                
                 .setDescription(
                     "**فتح تذكرة ل الأمور هاذي 👇🏼**\n\n" +
                     "**1- اعتراض على الباند**\n" +
                     "**2- تذكرة التعويض**\n" +
                     "**3- تذكرة الدعم الفني**\n\n" +
-                    
                     "**الرجاء الإجابة على الأسئلة لخدمتك بشكل أفضل 🤍.**\n\n\n" +
-                    
                     "**نتمنى منكم عدم الاستهبال ⚠️🪧!**\n\n" +
-                    
                     "**وشكرا لكم...🤍**"
                 );
 
@@ -602,7 +597,6 @@ client.on('interactionCreate', async interaction => {
             permissionOverwrites: overwrites,
         });
 
-        // إمبد فتح التذكرة باللون الذهبي/البرتقالي، يعرض نوع التذكرة بدقة والنص المطلوب
         const embed1 = new EmbedBuilder()
             .setColor(0xF1C40F)
             .setTitle(`**🎫 تذكرة [ ${ticketType} ]**`)
@@ -615,15 +609,11 @@ client.on('interactionCreate', async interaction => {
             .setColor(0xF1C40F)
             .setDescription(
                 `**• ما سبب فتح التذكرة ؟:**\n\`\`\`${reasonAns}\`\`\`\n` +
-                
                 `📌 **1- الاسم الكريم:**\n\`\`\`${nameAns}\`\`\`\n` +
-                
                 `🎮 **2- يوزر روبلوكس:**\n\`\`\`${robloxAns}\`\`\`\n` +
-                
                 `📁 **3- هل يوجد دليل؟:**\n\`\`\`${proofAns}\`\`\``
             );
 
-        // ترتيب الأزرار مثل الصورة تماماً (بدون زر الأونر)
         const row1 = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('close_ticket').setLabel('إغلاق').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
             new ButtonBuilder().setCustomId('claim_ticket').setLabel('استلام').setStyle(ButtonStyle.Success).setEmoji('📌')
@@ -638,7 +628,6 @@ client.on('interactionCreate', async interaction => {
             new ButtonBuilder().setCustomId('opt_move_menu_btn').setLabel('نقل التذكرة').setStyle(ButtonStyle.Primary).setEmoji('🔄')
         );
 
-        // قائمة تعديل التذكرة (Select Menu) مطابقة للصورة
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('ticket_manage_menu')
             .setPlaceholder('⚙️ تعديل التذكرة')
@@ -701,7 +690,12 @@ client.on('interactionCreate', async interaction => {
             adminCalled: false
         });
 
-        return interaction.editReply({ content: `تم فتح تذكرتك بنجاح هنا: <#${ticketChannel.id}> 🎟` });
+        // رسالة التأكيد المؤقتة المخفية للعضو إمبد باللون البرتقالي/الذهبي وبخط عريض
+        const successNotifyEmbed = new EmbedBuilder()
+            .setColor(0xF1C40F)
+            .setDescription(`**تم فتح تذكرتك بنجاح هنا:** <#${ticketChannel.id}> 🎟️`);
+
+        return interaction.editReply({ embeds: [successNotifyEmbed], ephemeral: true });
     }
 
     if (!interaction.isButton() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit()) return;
@@ -717,7 +711,6 @@ client.on('interactionCreate', async interaction => {
         return 0;
     };
 
-    // معالجة القائمة المنسدلة (Select Menu) لتعديل التذكرة
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_manage_menu') {
         const { member, channel, values } = interaction;
         
@@ -817,7 +810,7 @@ client.on('interactionCreate', async interaction => {
 
             const pointsEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
-                .setDescription(`تم اعطائك 1 نقطة نقاطك الان** ** : ${pointsObj[user.id]}`);
+                .setDescription(`تم اعطائك 1 نقطة نقاطك الان : ${pointsObj[user.id]}`);
 
             const subRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('claim_request').setLabel('طلب استلام 📌').setStyle(ButtonStyle.Primary),
@@ -833,7 +826,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "تم الاستلام بنجاح.", ephemeral: true });
         }
 
-        // زر طلب الاستلام (مع التحقق من أن المستلم لا يطلب من نفسه، ومنشن الإداري المستلم بدون أيدي)
         if (customId === 'claim_request') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "عذراً، هذا الزر خاص بفريق الإدارة فقط! ❌", ephemeral: true });
@@ -843,7 +835,6 @@ client.on('interactionCreate', async interaction => {
                 return interaction.reply({ content: "يجب استلام التذكرة أولاً قبل إرسال طلب استلام ثانوي! ⚠️", ephemeral: true });
             }
 
-            // منع المستلم من طلب الاستلام من نفسه
             if (ticketData.claimedBy === user.id) {
                 return interaction.reply({ content: "لا يمكنك طلب استلام تذكرتك بنفسك! ❌", ephemeral: true });
             }
@@ -858,7 +849,6 @@ client.on('interactionCreate', async interaction => {
                 new ButtonBuilder().setCustomId('reject_claim').setLabel('رفض الطلب ❌️').setStyle(ButtonStyle.Danger)
             );
 
-            // منشن الإداري المستلم الأصلي
             await channel.send({ 
                 content: `<@${ticketData.claimedBy}>`, 
                 embeds: [requestEmbed], 
@@ -902,7 +892,6 @@ client.on('interactionCreate', async interaction => {
             return;
         }
 
-        // استدعاء الإداري (يُضغط مرة واحدة إذا لم تُستلم)
         if (customId === 'opt_summon') {
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy) {
@@ -913,11 +902,10 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (ticketData) ticketData.adminCalled = true;
-            await channel.send(`تم استدعاء الإداري ✅ <@&${ROLES.STAFF}>`);
+            await channel.send(`تم استدعاء الإداري ☑ <@&${ROLES.STAFF}>`);
             return interaction.reply({ content: "تم استدعاء فريق الإدارة بنجاح.", ephemeral: true });
         }
 
-        // استدعاء السبورت (يُضغط مرة واحدة)
         if (customId === 'opt_support_summon') {
             const ticketData = activeTickets.get(channel.id);
             if (ticketData && ticketData.claimedBy) {
@@ -932,7 +920,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "تم استدعاء السبورت بنجاح! ✅", ephemeral: true });
         }
 
-        // نقل التذكرة للأقسام بالأسماء والشروط المطلوبة بالشرطات (ديكورد ستايل)
         if (customId === 'opt_move_menu_btn') {
             if (!member.roles.cache.has(ROLES.STAFF)) {
                 return interaction.reply({ content: "هذا الزر لفريق الإدارة فقط! ❌", ephemeral: true });
@@ -981,7 +968,6 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: "اختر إجراء الإغلاق:", components: [row], ephemeral: false });
         }
 
-        // زر ترك التذكرة: مخصص لمستلم التذكرة فقط
         if (customId === 'leave_ticket') {
             const ticketData = activeTickets.get(channel.id);
             if (!ticketData || ticketData.claimedBy !== user.id) {
@@ -1040,26 +1026,16 @@ client.on('interactionCreate', async interaction => {
             const logEmbed = new EmbedBuilder()
                 .setColor(0x2F3136)
                 .setTitle("**🔒 | سجل إغلاق تذكرة جديدة**")
-                
                 .setDescription("**تم إغلاق التذكرة بنجاح وحفظ تفاصيلها أدناه:**")
                 .addFields(
-                    
                     { name: "**📌 اسم التذكرة:**", value: `\`${channel.name}\``, inline: true },
-                    
                     { name: "**🎫 نوع التذكرة:**", value: `\`${ticketData ? ticketData.ticketTypeName : 'غير معروف'}\``, inline: true },
-                    
                     { name: "\u200b", value: "\u200b", inline: false },
-                    
                     { name: "**👤 صاحب التذكرة:**", value: `<@${ticketData ? ticketData.userId : 'غير معروف'}>`, inline: true },
-                    
                     { name: "**🛡️ مستلم التذكرة:**", value: `${ticketData && ticketData.claimedBy ? `<@${ticketData.claimedBy}>` : '**لم يتم الاستلام**'}`, inline: true },
-                    
                     { name: "\u200b", value: "\u200b", inline: false },
-
                     { name: "**🛠️ حذفت التذكرة بواسطة:**", value: `<@${user.id}>`, inline: true },
-                    
                     { name: "**⏱️ وقت فتحها:**", value: `\`${ticketData ? ticketData.createdAtFormatted : 'غير متوفر'}\``, inline: false },
-                    
                     { name: "**🏁 وقت إغلاقها:**", value: `\`${formattedCloseDate}\``, inline: false }
                 )
                 .setTimestamp()
