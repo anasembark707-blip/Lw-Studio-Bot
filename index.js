@@ -810,7 +810,7 @@ client.on('interactionCreate', async interaction => {
 
             const pointsEmbed = new EmbedBuilder()
                 .setColor(0x00FF00)
-                .setDescription(`تم اعطائك 1 نقطة نقاطك الان : ${pointsObj[user.id]}`);
+                .setDescription(`** تم اعطائك 1 نقطة نقاطك الان : ${pointsObj[user.id]} **`);
 
             const subRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('claim_request').setLabel('طلب استلام 📌').setStyle(ButtonStyle.Primary),
@@ -902,7 +902,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (ticketData) ticketData.adminCalled = true;
-            await channel.send(`تم استدعاء الإداري ☑ <@&${ROLES.STAFF}>`);
+            await channel.send(`تم استدعاء الإداري ✅ <@&${ROLES.STAFF}>`);
             return interaction.reply({ content: "تم استدعاء فريق الإدارة بنجاح.", ephemeral: true });
         }
 
@@ -916,7 +916,7 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (ticketData) ticketData.supportCalled = true;
-            await channel.send(`مطلوب مسؤولين الدعم الفني <@&${ROLES.STAFF}>\nالرجاء الانتظار 🤍.`);
+            await channel.send(`<@&${ROLES.STAFF}>\nالرجاء الانتظار 🤍.`);
             return interaction.reply({ content: "تم استدعاء السبورت بنجاح! ✅", ephemeral: true });
         }
 
